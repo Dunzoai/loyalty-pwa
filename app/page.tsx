@@ -1,103 +1,261 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabaseClient';
+import LikeButton from './LikeButton'; // 🤝 toggle (no counter)
+import RedeemModalLauncher from '@/app/redeem/RedeemModalLauncher'; // ⬅️ NEW
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+type CardTier = 'insider' | 'founder' | 'influencer';
+
+type Perk = {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_sponsored: boolean | null;
+  tags: string[] | null;
+  required_card_tier: CardTier;
+  active?: boolean | null;
+
+  business_name?: string | null;
+  business_logo_url?: string | null;
+  image_url?: string | null;
+
+  // viewer-specific state
+  viewer_has_liked?: boolean;
+
+  // (kept for future use; unused now)
+  like_count?: number;
+};
+
+export default function FeedPage() {
+  const [session, setSession] = useState<any>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'member' | null>(null);
+  const [cardTier, setCardTier] = useState<CardTier | null>(null);
+  const [perks, setPerks] = useState<Perk[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setErr(null);
+
+      const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) setErr(sessErr.message);
+      setSession(session);
+      if (!session) { setLoading(false); return; }
+
+      // Run in parallel for speed
+      const cardsQ = supabase
+        .from('Cards')
+        .select('tier, status')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      const roleQ = supabase
+        .from('Users')
+        .select('role')
+        .eq('email', session.user.email as string)
+        .maybeSingle();
+
+      const perksQ = supabase.rpc('eligible_perks', { feed_limit: 50 });
+
+      const [
+        { data: card },
+        { data: roleRow, error: roleErr },
+        { data: rpcData, error: rpcErr }
+      ] = await Promise.all([cardsQ, roleQ, perksQ]);
+
+      if (card?.tier) setCardTier(card.tier as CardTier);
+      setUserRole(roleErr ? 'member' : ((roleRow?.role as 'admin' | 'member' | null) ?? 'member'));
+
+      let basePerks: Perk[] = [];
+      if (rpcErr) {
+        const { data: perkData, error: perkErr } = await supabase
+          .from('Perks')
+          .select('id,title,description,starts_at,ends_at,is_sponsored,tags,required_card_tier,active,image_url')
+          .eq('active', true)
+          .order('starts_at', { ascending: false })
+          .limit(50);
+        if (perkErr) setErr(perkErr.message);
+        basePerks = (perkData as Perk[]) ?? [];
+      } else {
+        basePerks = (rpcData as Perk[]) ?? [];
+      }
+
+      // ✅ Only fetch THIS viewer's likes (no global counts)
+      if (basePerks.length > 0) {
+        const ids = basePerks.map(p => p.id);
+        const { data: userLikes, error: likeErr } = await supabase
+          .from('perk_likes')
+          .select('perk_id')
+          .eq('user_id', session.user.id)
+          .in('perk_id', ids);
+
+        if (likeErr) {
+          console.warn('[feed] like fetch error', likeErr);
+          setPerks(basePerks);
+        } else {
+          const likedSet = new Set((userLikes ?? []).map(r => r.perk_id as string));
+          setPerks(basePerks.map(p => ({ ...p, viewer_has_liked: likedSet.has(p.id) })));
+        }
+      } else {
+        setPerks(basePerks);
+      }
+
+      setLoading(false);
+    })();
+  }, []);
+
+  if (!session) {
+    return (
+      <main className="p-6">
+        <h1 className="text-2xl font-semibold mb-2">Welcome</h1>
+        <p className="mb-4">Sign in to see your perks.</p>
+        <Link href="/login" className="underline">Go to login</Link>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    );
+  }
+
+  return (
+    <main className="pb-8">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Perks for you</h1>
+          <p className="text-sm text-gray-500">
+            {cardTier ? `Your tier: ${cardTier}` : 'No active card found'}
+          </p>
+        </div>
+
+        {userRole === 'admin' && (
+          <Link
+            href="/admin/perks/new"
+            className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm shadow-sm hover:bg-blue-700"
+          >
+            + New Perk
+          </Link>
+        )}
+      </div>
+
+      {err && <p className="px-4 text-red-600 text-sm mb-3">{err}</p>}
+
+      {loading ? (
+        <div className="px-4 space-y-6">
+          {[1, 2].map(i => (
+            <div key={i} className="animate-pulse rounded-2xl bg-neutral-100 dark:bg-neutral-800 h-[340px]" />
+          ))}
+        </div>
+      ) : perks.length === 0 ? (
+        <p className="px-4">No perks right now.</p>
+      ) : (
+        <ul className="px-0 sm:px-2 md:px-0 space-y-6">
+          {perks.map((p) => (
+            <li
+              key={p.id}
+              className="rounded-2xl shadow-md ring-1 ring-black/5 overflow-hidden bg-white dark:bg-neutral-900"
+            >
+              {/* Business header */}
+              <div className="p-3 flex items-center gap-2">
+                {p.business_logo_url ? (
+                  <Image
+                    src={p.business_logo_url}
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="w-7 h-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gray-300" />
+                )}
+                <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                  {p.business_name ?? 'Participating Business'}
+                </div>
+                {p.is_sponsored && (
+                  <span className="ml-auto text:[11px] uppercase text-gray-500">Sponsored</span>
+                )}
+              </div>
+
+              {/* Hero image */}
+              {p.image_url && (
+                <div className="relative w-full aspect-[4/3] bg-neutral-100 dark:bg-neutral-800">
+                  <Image
+                    src={p.image_url}
+                    alt={p.title}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 540px"
+                  />
+                </div>
+              )}
+
+              {/* Body */}
+              <div className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold leading-snug">{p.title}</h3>
+                    {p.description && (
+                      <p className="text-base text-neutral-700 dark:text-neutral-300 mt-1 line-clamp-2">
+                        {p.description}
+                      </p>
+                    )}
+                    <div className="mt-2 text-sm text-neutral-500">
+                      <span>Required tier: {p.required_card_tier}</span>
+                      {p.starts_at && (
+                        <span className="ml-2">
+                          Starts {new Date(p.starts_at).toLocaleDateString()}
+                        </span>
+                      )}
+                      {p.ends_at && (
+                        <span className="ml-2">
+                          Ends {new Date(p.ends_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+
+                    {Array.isArray(p.tags) && p.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {p.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="px-2 py-0.5 text-xs rounded-full bg-neutral-100 dark:bg-neutral-800"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="ml-auto flex flex-col items-end gap-2">
+                    <LikeButton
+                      perkId={p.id}
+                      userId={session.user.id}
+                      initialLiked={!!p.viewer_has_liked}
+                      onResult={(liked) => {
+                        // keep parent in sync so props never snap back
+                        setPerks(prev =>
+                          prev.map(row =>
+                            row.id === p.id ? { ...row, viewer_has_liked: liked } : row
+                          )
+                        );
+                      }}
+                    />
+                    {/* NEW: Redeem button → opens 45s QR modal */}
+                    <RedeemModalLauncher perkId={p.id} />
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
   );
 }
