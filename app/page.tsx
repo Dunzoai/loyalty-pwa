@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
-import LikeButton from './LikeButton'; // 🤝 toggle (no counter)
-import RedeemModalLauncher from '@/app/redeem/RedeemModalLauncher'; // ⬅️ NEW
+import LikeButton from './LikeButton';
+import SaveButton from './SaveButton'; // New import
+import RedeemModalLauncher from '@/app/redeem/RedeemModalLauncher';
 
 type CardTier = 'insider' | 'founder' | 'influencer';
 
@@ -26,6 +27,7 @@ type Perk = {
 
   // viewer-specific state
   viewer_has_liked?: boolean;
+  viewer_has_saved?: boolean; // New field
 
   // (kept for future use; unused now)
   like_count?: number;
@@ -88,22 +90,39 @@ export default function FeedPage() {
         basePerks = (rpcData as Perk[]) ?? [];
       }
 
-      // ✅ Only fetch THIS viewer's likes (no global counts)
+      // Fetch viewer's likes and saves
       if (basePerks.length > 0) {
         const ids = basePerks.map(p => p.id);
+        
+        // Fetch likes
         const { data: userLikes, error: likeErr } = await supabase
           .from('perk_likes')
           .select('perk_id')
           .eq('user_id', session.user.id)
           .in('perk_id', ids);
 
+        // Fetch saves
+        const { data: userSaves, error: saveErr } = await supabase
+          .from('saved_perks')
+          .select('perk_id')
+          .eq('user_id', session.user.id)
+          .in('perk_id', ids);
+
         if (likeErr) {
           console.warn('[feed] like fetch error', likeErr);
-          setPerks(basePerks);
-        } else {
-          const likedSet = new Set((userLikes ?? []).map(r => r.perk_id as string));
-          setPerks(basePerks.map(p => ({ ...p, viewer_has_liked: likedSet.has(p.id) })));
         }
+        if (saveErr) {
+          console.warn('[feed] save fetch error', saveErr);
+        }
+
+        const likedSet = new Set((userLikes ?? []).map(r => r.perk_id as string));
+        const savedSet = new Set((userSaves ?? []).map(r => r.perk_id as string));
+        
+        setPerks(basePerks.map(p => ({ 
+          ...p, 
+          viewer_has_liked: likedSet.has(p.id),
+          viewer_has_saved: savedSet.has(p.id)
+        })));
       } else {
         setPerks(basePerks);
       }
@@ -233,13 +252,12 @@ export default function FeedPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="ml-auto flex flex-col items-end gap-2">
+                  <div className="ml-auto flex items-center gap-1">
                     <LikeButton
                       perkId={p.id}
                       userId={session.user.id}
                       initialLiked={!!p.viewer_has_liked}
                       onResult={(liked) => {
-                        // keep parent in sync so props never snap back
                         setPerks(prev =>
                           prev.map(row =>
                             row.id === p.id ? { ...row, viewer_has_liked: liked } : row
@@ -247,7 +265,18 @@ export default function FeedPage() {
                         );
                       }}
                     />
-                    {/* NEW: Redeem button → opens 45s QR modal */}
+                    <SaveButton
+                      perkId={p.id}
+                      userId={session.user.id}
+                      initialSaved={!!p.viewer_has_saved}
+                      onResult={(saved) => {
+                        setPerks(prev =>
+                          prev.map(row =>
+                            row.id === p.id ? { ...row, viewer_has_saved: saved } : row
+                          )
+                        );
+                      }}
+                    />
                     <RedeemModalLauncher perkId={p.id} />
                   </div>
                 </div>

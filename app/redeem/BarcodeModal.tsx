@@ -1,27 +1,43 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 type Props = { perkId: string; onClose: () => void };
 
+type ModalState = 
+  | { phase: 'loading' }
+  | { phase: 'ready'; code: string; expiresAt: string }
+  | { phase: 'error'; msg: string };
+
 export default function BarcodeModal({ perkId, onClose }: Props) {
-  const [state, setState] = useState<
-    | { phase: 'loading' }
-    | { phase: 'ready'; code: string; expiresAt: string }
-    | { phase: 'error'; msg: string }
-  >({ phase: 'loading' });
+  const [state, setState] = useState<ModalState>({ phase: 'loading' });
   const [secondsLeft, setSecondsLeft] = useState(45);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch('/redeem/new', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ perkId }),
-      });
-      const data = await res.json();
-      if (!data.ok) return setState({ phase: 'error', msg: data.error ?? 'failed' });
-      setState({ phase: 'ready', code: data.code, expiresAt: data.expiresAt });
+      try {
+        // Get the current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+          setState({ phase: 'error', msg: 'Not authenticated' });
+          return;
+        }
+
+        // Generate a temporary code WITHOUT hitting the database
+        // Format: TEMP_<userId>_<perkId>_<timestamp>
+        const timestamp = Date.now();
+        const tempCode = `TEMP_${user.id}_${perkId}_${timestamp}`;
+        
+        // Calculate expiration time (45 seconds from now)
+        const expiresAt = new Date(timestamp + 45000).toISOString();
+        
+        setState({ phase: 'ready', code: tempCode, expiresAt });
+      } catch (err) {
+        console.error('Error generating QR:', err);
+        setState({ phase: 'error', msg: 'Failed to generate code' });
+      }
     })();
   }, [perkId]);
 
@@ -31,15 +47,19 @@ export default function BarcodeModal({ perkId, onClose }: Props) {
     const id = setInterval(() => {
       const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       setSecondsLeft(s);
+      // Auto-close when timer hits 0
+      if (s === 0) {
+        onClose();
+      }
     }, 250);
     return () => clearInterval(id);
-  }, [state]);
+  }, [state, onClose]);
 
   const qrSrc = useMemo(() => {
     if (state.phase !== 'ready') return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-      state.code
-    )}&size=240x240`;
+    // Include the full URL so scanning takes you to the validation page
+    const validationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/business/validate?code=${state.code}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(validationUrl)}&size=240x240`;
   }, [state]);
 
   return (
@@ -51,7 +71,7 @@ export default function BarcodeModal({ perkId, onClose }: Props) {
 
         {state.phase === 'error' && (
           <div className="text-red-600">
-            <p className="mb-2">Couldn’t generate code.</p>
+            <p className="mb-2">Couldn't generate code.</p>
             <p className="text-sm opacity-70">{state.msg}</p>
           </div>
         )}
@@ -65,13 +85,26 @@ export default function BarcodeModal({ perkId, onClose }: Props) {
               width={240}
               height={240}
             />
-            <div className="font-mono text-xs break-all mb-2">{state.code}</div>
+            <div className="text-xs text-gray-500 mb-2">
+              Scan with business app
+            </div>
             <div
-              className={`text-sm ${
-                secondsLeft <= 5 ? 'text-red-600 font-semibold' : 'text-gray-600'
+              className={`text-2xl font-bold ${
+                secondsLeft <= 10 ? 'text-red-600' : 'text-gray-800'
               }`}
             >
-              Expires in {secondsLeft}s
+              {secondsLeft}s
+            </div>
+            <div className="text-sm text-gray-600 mt-1">
+              Time remaining
+            </div>
+            
+            {/* Show FULL code for manual entry if needed */}
+            <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">Manual code (if scan fails):</p>
+              <div className="font-mono text-xs break-all select-all text-gray-700">
+                {state.code}
+              </div>
             </div>
           </>
         )}

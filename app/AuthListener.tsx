@@ -5,9 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function AuthListener() {
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: subscription } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Tell the server to sync Supabase cookies
         await fetch('/auth/callback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -17,7 +16,9 @@ export default function AuthListener() {
     );
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription?.subscription) {
+        subscription.subscription.unsubscribe();
+      }
     };
   }, []);
 

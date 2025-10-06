@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-/** --- Types --- */
 type Biz = {
   id: string;
   name: string | null;
@@ -37,12 +37,9 @@ export default function AdminProfilePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [form, setForm] = useState<Biz | null>(null);
-
-  // Logo state
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  /** ---------- Load businesses this user admins ---------- */
+  // -------- Load admin businesses and pick which one to edit
   useEffect(() => {
     let cancelled = false;
 
@@ -57,39 +54,35 @@ export default function AdminProfilePage() {
         return;
       }
 
+      // ✅ Typed Supabase call — removes squiggle
       const { data: adminRows, error: adminErr } = await supabase
         .from('business_admins')
         .select('business_id, Businesses(*)')
-        .order('business_id', { ascending: true });
+        .order('business_id', { ascending: true })
+        .returns<AdminLink[]>();
+
+      if (cancelled) return;
 
       if (adminErr) {
-        if (!cancelled) {
-          setError(adminErr.message);
-          setLoading(false);
-        }
+        setError(adminErr.message);
+        setLoading(false);
         return;
       }
 
-      // ✅ TS-safe mapping
-      const rows: AdminLink[] = (adminRows ?? []).map((r: any) => ({
-        business_id: r.business_id,
-        Businesses: r.Businesses ?? null,
-      }));
-      if (cancelled) return;
-
+      const rows: AdminLink[] = adminRows ?? [];
       setLinks(rows);
 
-      // Pick initial business: ?business_id → first linked → new (blank)
+      // Decide initial pick:
       const param = search.get('business_id');
-      const initialId =
-        (param && rows.some((r) => r.business_id === param) ? param : null) ??
-        rows[0]?.business_id ??
+      const initial =
+        (param && rows.find(r => r.business_id === param)?.business_id) ||
+        rows[0]?.business_id ||
         null;
 
-      setSelectedId(initialId);
+      setSelectedId(initial);
 
-      if (initialId) {
-        const chosen = rows.find((r) => r.business_id === initialId)?.Businesses || null;
+      if (initial) {
+        const chosen = rows.find(r => r.business_id === initial)?.Businesses || null;
         setForm(
           chosen
             ? {
@@ -106,7 +99,6 @@ export default function AdminProfilePage() {
             : null
         );
       } else {
-        // New blank form
         setForm({
           id: '',
           name: '',
@@ -120,16 +112,11 @@ export default function AdminProfilePage() {
         });
       }
 
-      // clear any dangling preview
-      setLogoFile(null);
-      setLogoPreview(null);
-
       setLoading(false);
     })();
 
     return () => {
       cancelled = true;
-      if (logoPreview) URL.revokeObjectURL(logoPreview);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
@@ -137,56 +124,11 @@ export default function AdminProfilePage() {
   const multi = links.length > 1;
   const currentName = useMemo(() => {
     if (!selectedId) return 'New business';
-    const l = links.find((l) => l.business_id === selectedId);
+    const l = links.find(l => l.business_id === selectedId);
     return l?.Businesses?.name || 'Untitled business';
   }, [links, selectedId]);
 
-  /** ---------- Helpers ---------- */
-  function startNewBusiness() {
-    // Clear to a brand-new (unsaved) business form
-    setSelectedId(null);
-    setForm({
-      id: '',
-      name: '',
-      description: '',
-      website: '',
-      email: '',
-      phone: '',
-      address: '',
-      logo_url: '',
-      active: true,
-    });
-    setError(null);
-    setSaved(false);
-    setLogoFile(null);
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
-    setLogoPreview(null);
-  }
-
-  function pickBusiness(id: string) {
-    setSelectedId(id);
-    setError(null);
-    setSaved(false);
-    setLogoFile(null);
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
-    setLogoPreview(null);
-
-    const chosen = links.find((l) => l.business_id === id)?.Businesses;
-    if (chosen) {
-      setForm({
-        id: chosen.id,
-        name: chosen.name ?? '',
-        description: chosen.description ?? '',
-        website: chosen.website ?? '',
-        email: chosen.email ?? '',
-        phone: chosen.phone ?? '',
-        address: chosen.address ?? '',
-        logo_url: chosen.logo_url ?? '',
-        active: chosen.active ?? true,
-      });
-    }
-  }
-
+  // -------- Upload logo
   async function uploadLogoIfNeeded(bizId: string): Promise<string | null> {
     if (!logoFile) return null;
     const key = `${bizId}/${crypto.randomUUID()}-${logoFile.name}`;
@@ -201,13 +143,11 @@ export default function AdminProfilePage() {
     return pub?.publicUrl ?? null;
   }
 
-  /** ---------- Save (insert or update) ---------- */
-  async function handleSave() {
-    if (!form) return;
-
-    setSaving(true);
+  // -------- Create & link a brand new business
+  async function handleCreateBusiness() {
     setError(null);
     setSaved(false);
+    setSaving(true);
 
     const { data: sess } = await supabase.auth.getSession();
     const userId = sess?.session?.user?.id;
@@ -217,80 +157,96 @@ export default function AdminProfilePage() {
       return;
     }
 
-    // INSERT new
-    if (!form.id) {
-      const { data: ins, error: insErr } = await supabase
-        .from('Businesses')
-        .insert({
-          name: (form.name || '').trim() || 'Untitled business',
-          description: form.description || '',
-          website: form.website || '',
-          email: form.email || '',
-          phone: form.phone || '',
-          address: form.address || '',
-          logo_url: '',
-          active: true,
-          // (optional) created_by: userId, if you added that column
-        })
-        .select('*')
-        .single();
+    // Create business first
+    const { data: ins, error: insErr } = await supabase
+      .from('Businesses')
+      .insert({
+        name: (form?.name || '').trim() || 'Untitled business',
+        description: form?.description || '',
+        website: form?.website || '',
+        email: form?.email || '',
+        phone: form?.phone || '',
+        address: form?.address || '',
+        logo_url: '',
+        active: true,
+      })
+      .select('*')
+      .single();
 
-      if (insErr) {
-        const msg = insErr.message.includes('row-level security')
-          ? 'New row violates row-level security policy for table "Businesses". Ensure the INSERT policy exists.'
+    if (insErr) {
+      const msg =
+        insErr.message.includes('row-level security')
+          ? 'new row violates row-level security policy for table "Businesses". Add the INSERT policy shown below in Supabase (SQL provided).'
           : insErr.message;
-        setError(msg);
-        setSaving(false);
-        return;
-      }
-
-      // link current user as admin for this business
-      const { error: linkErr } = await supabase
-        .from('business_admins')
-        .insert({ business_id: ins!.id, user_id: userId });
-      if (linkErr) {
-        setError(linkErr.message);
-        setSaving(false);
-        return;
-      }
-
-      // upload logo now (if any) and patch the row with the public URL
-      let newLogoUrl = null as string | null;
-      if (logoFile) {
-        newLogoUrl = await uploadLogoIfNeeded(ins!.id);
-        if (newLogoUrl) {
-          await supabase
-            .from('Businesses')
-            .update({ logo_url: newLogoUrl })
-            .eq('id', ins!.id);
-        }
-      }
-
-      const newBiz: Biz = {
-        id: ins!.id,
-        name: ins!.name ?? '',
-        description: ins!.description ?? '',
-        website: ins!.website ?? '',
-        email: ins!.email ?? '',
-        phone: ins!.phone ?? '',
-        address: ins!.address ?? '',
-        logo_url: newLogoUrl || ins!.logo_url ?? '',
-        active: ins!.active ?? true,
-      };
-
-      // update local cache + UI
-      setLinks((prev) => [...prev, { business_id: ins!.id, Businesses: newBiz }]);
-      setSelectedId(ins!.id);
-      setForm(newBiz);
-      setLogoFile(null);
-      if (logoPreview) URL.revokeObjectURL(logoPreview);
-      setLogoPreview(null);
-      setSaved(true);
+      setError(msg);
       setSaving(false);
       return;
     }
 
-    // UPDATE existing
+    // Upload logo if provided
+    let finalLogoUrl = '';
+    if (logoFile && ins) {
+      const uploadedUrl = await uploadLogoIfNeeded(ins.id);
+      if (uploadedUrl) {
+        finalLogoUrl = uploadedUrl;
+        // Update the business with the logo URL
+        const { error: updateErr } = await supabase
+          .from('Businesses')
+          .update({ logo_url: finalLogoUrl })
+          .eq('id', ins.id);
+        
+        if (updateErr) {
+          setError(updateErr.message);
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
+    // Link user to business
+    const { error: linkErr } = await supabase
+      .from('business_admins')
+      .insert({ business_id: ins.id, user_id: userId });
+
+    if (linkErr) {
+      setError(linkErr.message);
+      setSaving(false);
+      return;
+    }
+
+    const updatedBusiness = { ...ins, logo_url: finalLogoUrl } as Biz;
+    setLinks(prev => [...prev, { business_id: ins.id, Businesses: updatedBusiness }]);
+    setSelectedId(ins.id);
+    setForm({
+      id: ins.id,
+      name: ins.name ?? '',
+      description: ins.description ?? '',
+      website: ins.website ?? '',
+      email: ins.email ?? '',
+      phone: ins.phone ?? '',
+      address: ins.address ?? '',
+      logo_url: finalLogoUrl,
+      active: ins.active ?? true,
+    });
+
+    setSaved(true);
+    setSaving(false);
+    setLogoFile(null);
+  }
+
+  // -------- Save existing
+  async function handleSave() {
+    if (!form) return;
+    setError(null);
+    setSaved(false);
+    setSaving(true);
+
+    if (!form.id) {
+      await handleCreateBusiness();
+      setSaving(false);
+      return;
+    }
+
     let logo_url = form.logo_url || '';
     const uploaded = await uploadLogoIfNeeded(form.id);
     if (uploaded) logo_url = uploaded;
@@ -315,23 +271,52 @@ export default function AdminProfilePage() {
       return;
     }
 
-    // sync local cache
-    setLinks((prev) =>
-      prev.map((l) =>
+    setLinks(prev =>
+      prev.map(l =>
         l.business_id === form.id
           ? { ...l, Businesses: { ...(l.Businesses || {}), ...form, logo_url } as Biz }
           : l
       )
     );
-    setForm({ ...(form as Biz), logo_url });
-    setLogoFile(null);
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
-    setLogoPreview(null);
+
     setSaved(true);
     setSaving(false);
+    setLogoFile(null);
   }
 
-  /** ---------- Render ---------- */
+  function pickBusiness(id: string) {
+    setSaved(false);
+    setError(null);
+    setSelectedId(id);
+
+    const chosen = links.find(l => l.business_id === id)?.Businesses;
+    if (chosen) {
+      setForm({
+        id: chosen.id,
+        name: chosen.name ?? '',
+        description: chosen.description ?? '',
+        website: chosen.website ?? '',
+        email: chosen.email ?? '',
+        phone: chosen.phone ?? '',
+        address: chosen.address ?? '',
+        logo_url: chosen.logo_url ?? '',
+        active: chosen.active ?? true,
+      });
+    } else {
+      setForm({
+        id: id,
+        name: '',
+        description: '',
+        website: '',
+        email: '',
+        phone: '',
+        address: '',
+        logo_url: '',
+        active: true,
+      });
+    }
+  }
+
   if (loading) return <main className="p-6">Loading…</main>;
 
   return (
@@ -341,16 +326,18 @@ export default function AdminProfilePage() {
         This is what customers see in your perks and on your profile.
       </p>
 
-      {/* Banner + switcher */}
+      {/* Banner / selector */}
       <div className="mb-4 rounded-lg border border-neutral-700 bg-neutral-900 p-3 flex flex-wrap gap-3 items-center">
         <div className="text-sm">
-          <span className="text-neutral-400">You’re editing:</span>{' '}
+          <span className="text-neutral-400">You're editing:</span>{' '}
           <span className="font-medium">{currentName}</span>
         </div>
 
         {multi && (
           <div className="ml-auto">
-            <label className="text-xs block mb-1 text-neutral-400">Switch business</label>
+            <label className="text-xs block mb-1 text-neutral-400">
+              Switch business
+            </label>
             <select
               className="rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 text-sm"
               value={selectedId ?? ''}
@@ -366,10 +353,10 @@ export default function AdminProfilePage() {
         )}
       </div>
 
-      {/* Add new */}
+      {/* Create new */}
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={startNewBusiness}
+          onClick={handleCreateBusiness}
           className="px-3 py-2 rounded-md border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-sm"
           disabled={saving}
         >
@@ -401,45 +388,31 @@ export default function AdminProfilePage() {
           }}
           className="space-y-5"
         >
-          {/* Logo picker (styled + instant preview) */}
+          {/* Logo */}
           <div>
             <label className="block text-sm mb-2">Logo</label>
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full overflow-hidden bg-neutral-800 ring-1 ring-black/20 flex items-center justify-center">
-                {/* Use <img> for instant local preview; it’s fine for small avatars */}
-                {(logoPreview || form.logo_url) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={logoPreview || (form.logo_url as string)}
-                    alt="logo preview"
-                    className="h-full w-full object-cover"
+              <div className="relative h-16 w-16 rounded-full overflow-hidden bg-neutral-800 ring-1 ring-black/20">
+                {form.logo_url ? (
+                  <Image
+                    src={form.logo_url}
+                    alt="logo"
+                    fill
+                    className="object-cover"
+                    sizes="64px"
                   />
                 ) : (
-                  <div className="text-xs text-neutral-500">No logo</div>
+                  <div className="h-full w-full" />
                 )}
               </div>
-
-              <div className="text-xs text-neutral-300">
-                <label
-                  htmlFor="logo-file"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 cursor-pointer"
-                >
-                  Choose file
-                </label>
+              <div className="text-xs text-neutral-400">
                 <input
-                  id="logo-file"
                   type="file"
                   accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.currentTarget.files?.[0] ?? null;
-                    setLogoFile(file);
-                    setSaved(false);
-                    if (logoPreview) URL.revokeObjectURL(logoPreview);
-                    setLogoPreview(file ? URL.createObjectURL(file) : null);
-                  }}
+                  onChange={(e) => setLogoFile(e.currentTarget.files?.[0] ?? null)}
+                  className="cursor-pointer"
                 />
-                <div className="mt-1 text-neutral-500">PNG/JPG preferred. &lt; 4MB.</div>
+                <div>PNG/JPG preferred. &lt; 4MB.</div>
               </div>
             </div>
           </div>
@@ -462,7 +435,9 @@ export default function AdminProfilePage() {
               rows={3}
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
               value={form.description ?? ''}
-              onChange={(e) => setForm({ ...(form as Biz), description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...(form as Biz), description: e.target.value })
+              }
             />
           </div>
 
@@ -474,7 +449,9 @@ export default function AdminProfilePage() {
                 className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
                 placeholder="https://example.com"
                 value={form.website ?? ''}
-                onChange={(e) => setForm({ ...(form as Biz), website: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...(form as Biz), website: e.target.value })
+                }
               />
             </div>
             <div>
@@ -483,7 +460,9 @@ export default function AdminProfilePage() {
                 type="email"
                 className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
                 value={form.email ?? ''}
-                onChange={(e) => setForm({ ...(form as Biz), email: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...(form as Biz), email: e.target.value })
+                }
               />
             </div>
           </div>
@@ -495,7 +474,9 @@ export default function AdminProfilePage() {
               <input
                 className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
                 value={form.phone ?? ''}
-                onChange={(e) => setForm({ ...(form as Biz), phone: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...(form as Biz), phone: e.target.value })
+                }
               />
             </div>
             <div>
@@ -503,7 +484,9 @@ export default function AdminProfilePage() {
               <input
                 className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
                 value={form.address ?? ''}
-                onChange={(e) => setForm({ ...(form as Biz), address: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...(form as Biz), address: e.target.value })
+                }
               />
             </div>
           </div>
@@ -514,7 +497,9 @@ export default function AdminProfilePage() {
               id="active"
               type="checkbox"
               checked={!!form.active}
-              onChange={(e) => setForm({ ...(form as Biz), active: e.target.checked })}
+              onChange={(e) =>
+                setForm({ ...(form as Biz), active: e.target.checked })
+              }
             />
             <label htmlFor="active" className="text-sm">
               Active
