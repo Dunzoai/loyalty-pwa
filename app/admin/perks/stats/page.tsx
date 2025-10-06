@@ -50,7 +50,7 @@ export default function PerkStatsPage() {
   }, []);
 
   // Format date helper
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleDateString(undefined, {
       month: 'short',
