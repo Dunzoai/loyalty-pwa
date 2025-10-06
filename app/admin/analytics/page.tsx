@@ -15,6 +15,16 @@ interface PerkData {
   count: number;
 }
 
+// Helper function to format dates
+function formatDateString(dateStr: string): string {
+  const dateObj = new Date(dateStr);
+  return dateObj.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
 export default function AnalyticsPage() {
   const [weeklyData, setWeeklyData] = useState<DayData[]>([]);
   const [topPerks, setTopPerks] = useState<PerkData[]>([]);
@@ -53,16 +63,6 @@ export default function AnalyticsPage() {
 
     fetchData();
   }, []);
-
-  // Format date without date-fns - fixed TypeScript
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   // Find the max value for scaling
   const maxCount = Math.max(...weeklyData.map(d => d.count), 1);
@@ -135,7 +135,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="ml-3">
                     <div className="text-xl font-semibold text-white">
-                      {stats.highest_day ? formatDate(stats.highest_day) : 'N/A'}
+                      {stats.highest_day ? formatDateString(stats.highest_day) : 'N/A'}
                     </div>
                     <div className="text-sm text-gray-400">Busiest Day</div>
                   </div>
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
                         {/* Date Label */}
                         <div className="text-center mt-2">
                           <div className="text-xs text-gray-400">
-                            {day.formatted ? day.formatted : formatDate(day.date)}
+                            {day.formatted ? day.formatted : formatDateString(day.date)}
                           </div>
                         </div>
                       </div>
