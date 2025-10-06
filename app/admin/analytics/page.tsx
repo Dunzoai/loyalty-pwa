@@ -54,8 +54,8 @@ export default function AnalyticsPage() {
     fetchData();
   }, []);
 
-  // Format date without date-fns
-  const formatDate = (dateString: string) => {
+  // Format date without date-fns - fixed TypeScript
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString(undefined, {
       weekday: 'short',
