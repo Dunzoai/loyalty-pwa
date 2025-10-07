@@ -58,7 +58,7 @@ export default function CustomerDetailsPage() {
   };
 
   // Determine activity level badge
-  const getActivityBadge = (redemptionCount) => {
+  const getActivityBadge = (redemptionCount: number) => {
     if (redemptionCount === 0) return 'bg-gray-900/40 text-gray-400 border-gray-700';
     if (redemptionCount === 1) return 'bg-blue-900/40 text-blue-300 border-blue-800';
     if (redemptionCount <= 3) return 'bg-green-900/40 text-green-300 border-green-800';
