@@ -23,11 +23,6 @@
         "./*"
       ]
     },
-    "types": [
-      "node",
-      "react/next",
-      "react-dom/next"
-    ],
     "esModuleInterop": true,
     "plugins": [
       {

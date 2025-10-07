@@ -48,7 +48,7 @@ export async function GET() {
     if (perkError) throw perkError;
     
     // Count redemptions per perk
-    const perkCounts = {};
+    const perkCounts: any = {};
     perkRedemptions.forEach(redemption => {
       if (redemption.perk_id && redemption.Perks) {
         const perkId = redemption.perk_id;
@@ -57,10 +57,10 @@ export async function GET() {
     });
     
     // Find the most popular perk
-    let mostPopularPerkId = null;
+    let mostPopularPerkId: any = null;
     let maxCount = 0;
     
-    Object.entries(perkCounts).forEach(([perkId, count]) => {
+    Object.entries(perkCounts).forEach(([perkId, count]: [string, any]) => {
       if (count > maxCount) {
         mostPopularPerkId = perkId;
         maxCount = count as number;
@@ -68,7 +68,7 @@ export async function GET() {
     });
     
     // Find the perk title
-    const mostPopular = perkRedemptions.find(p => p.perk_id === mostPopularPerkId)?.Perks?.title || '';
+    const mostPopular = (perkRedemptions.find((p: any) => p.perk_id === mostPopularPerkId) as any)?.Perks?.title || '';
     
     // Count returning customers WITHOUT using group()
     // Instead, we'll fetch all redemptions and do the grouping in JavaScript
@@ -80,7 +80,7 @@ export async function GET() {
     if (allRedError) throw allRedError;
     
     // Count users with multiple redemptions
-    const userCounts = {};
+    const userCounts: any = {};
     allRedemptions.forEach(redemption => {
       if (redemption.user_id) {
         userCounts[redemption.user_id] = (userCounts[redemption.user_id] || 0) + 1;
@@ -88,7 +88,7 @@ export async function GET() {
     });
     
     // Count users with more than 1 redemption
-    const repeatCustomers = Object.values(userCounts).filter(count => count > 1).length;
+    const repeatCustomers = Object.values(userCounts).filter((count: any) => count > 1).length;
     
     return NextResponse.json({
       today_count: todayCount || 0,

@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     const maxRedemptions = perk.max_redemptions_per_user || 1;
     
-    if (count >= maxRedemptions) {
+    if (count !== null && count >= maxRedemptions) {
       return NextResponse.json({ 
         ok: false, 
         error: `Redemption limit reached (${count}/${maxRedemptions})` 
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
         },
         user: userData,
         redeemedAt: now.toISOString(),
-        redemptionCount: count + 1,
+        redemptionCount: (count || 0) + 1,
         maxRedemptions: maxRedemptions
       }
     });

@@ -178,7 +178,7 @@ export default function CardholderDashboard() {
         console.log('Perks data count:', perksData?.length);
         
         // Transform data structure for easier rendering
-        const transformedPerks = perksData.map(perk => ({
+        const transformedPerks = perksData.map((perk: any) => ({
           id: perk.id,
           title: perk.title,
           description: perk.description,
@@ -225,7 +225,7 @@ export default function CardholderDashboard() {
           // Transform and filter out any null perks (in case perk was deleted)
           const transformedSavedPerks = (savedPerksData || [])
             .filter(sp => sp.perks !== null)
-            .map(sp => ({
+            .map((sp: any) => ({
               id: sp.perks.id,
               title: sp.perks.title,
               description: sp.perks.description,
@@ -274,7 +274,7 @@ export default function CardholderDashboard() {
         console.log('Redemptions count:', redemptionsData?.length);
         
         // Transform redemptions data
-        const transformedRedemptions = redemptionsData.map(r => ({
+        const transformedRedemptions = redemptionsData.map((r: any) => ({
           id: r.id,
           created_at: r.created_at,
           redeemed_at: r.redeemed_at,

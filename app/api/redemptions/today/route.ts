@@ -30,7 +30,7 @@ export async function GET() {
     
     // Get user info separately if needed
     const userIds = data.map(item => item.user_id).filter(Boolean);
-    let users = {};
+    let users: any = {};
     
     if (userIds.length > 0) {
       const { data: userData, error: userError } = await supabase
@@ -46,7 +46,7 @@ export async function GET() {
     }
     
     // Format data for frontend
-    const redemptions = data.map(item => ({
+    const redemptions = data.map((item: any) => ({
       id: item.id,
       perk_id: item.perk_id,
       perk_title: item.Perks?.title || 'Unknown Perk',

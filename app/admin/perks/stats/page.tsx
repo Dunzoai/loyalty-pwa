@@ -60,7 +60,7 @@ export default function PerkStatsPage() {
   };
 
   // Status badge color helper
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'live': return 'bg-green-900/40 text-green-300 border-green-800';
       case 'scheduled': return 'bg-blue-900/40 text-blue-300 border-blue-800';
@@ -71,7 +71,7 @@ export default function PerkStatsPage() {
   };
   
   // Tier badge color helper
-  const getTierColor = (tier) => {
+  const getTierColor = (tier: string) => {
     switch (tier) {
       case 'founder': return 'bg-purple-900/40 text-purple-300 border-purple-800';
       case 'insider': return 'bg-blue-900/40 text-blue-300 border-blue-800';
@@ -217,7 +217,7 @@ export default function PerkStatsPage() {
                             {perk.month_redemptions}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            {formatDate(perk.last_redeemed)}
+                            {perk.last_redeemed ? formatDate(perk.last_redeemed) : 'Never'}
                           </td>
                         </tr>
                       ))}

@@ -20,9 +20,9 @@ export async function GET() {
     if (redemptionsError) throw redemptionsError;
     
     // Calculate customer statistics
-    const customerStats = userData.map(user => {
-      const userRedemptions = redemptionsData.filter(r => r.user_id === user.id && r.status === 'redeemed');
-      const redeemedPerks = new Set(userRedemptions.map(r => r.perk_id));
+    const customerStats = userData.map((user: any) => {
+      const userRedemptions = redemptionsData.filter((r: any) => r.user_id === user.id && r.status === 'redeemed');
+      const redeemedPerks = new Set(userRedemptions.map((r: any) => r.perk_id));
       
       // Get last activity date
       let lastActivity = user.created_at;

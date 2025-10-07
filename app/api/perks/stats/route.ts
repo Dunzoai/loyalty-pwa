@@ -22,10 +22,10 @@ export async function GET() {
     if (redemptionsError) throw redemptionsError;
     
     // Get counts for each perk
-    const redemptionCounts = {};
-    const lastRedemptionDates = {};
-    const weekCounts = {};
-    const monthCounts = {};
+    const redemptionCounts: any = {};
+    const lastRedemptionDates: any = {};
+    const weekCounts: any = {};
+    const monthCounts: any = {};
     
     const now = new Date();
     const weekAgo = new Date();

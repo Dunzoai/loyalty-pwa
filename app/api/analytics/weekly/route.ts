@@ -9,7 +9,7 @@ export async function GET() {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     
-    const days = [];
+    const days: any[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(today.getDate() - i);
@@ -38,7 +38,7 @@ export async function GET() {
     if (error) throw error;
     
     // Count redemptions per day
-    data.forEach(redemption => {
+    data.forEach((redemption: any) => {
       const redemptionDate = new Date(redemption.redeemed_at).toISOString().split('T')[0];
       const dayIndex = days.findIndex(day => day.date === redemptionDate);
       
@@ -48,8 +48,8 @@ export async function GET() {
     });
     
     // Get perk counts for top perks this week
-    const perkCounts = {};
-    data.forEach(redemption => {
+    const perkCounts: any = {};
+    data.forEach((redemption: any) => {
       const perkId = redemption.perk_id;
       const perkTitle = redemption.Perks?.title || 'Unknown';
       
@@ -66,7 +66,7 @@ export async function GET() {
     
     // Convert to array and sort
     const topPerks = Object.values(perkCounts)
-      .sort((a, b) => b.count - a.count)
+      .sort((a: any, b: any) => b.count - a.count)
       .slice(0, 5);
     
     // Calculate stats

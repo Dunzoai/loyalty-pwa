@@ -21,8 +21,8 @@ export async function GET() {
     if (redemptionsError) throw redemptionsError;
     
     // Count redemptions by perk and track last redemption
-    const redemptionCounts = {};
-    const lastRedemptionDates = {};
+    const redemptionCounts: any = {};
+    const lastRedemptionDates: any = {};
     
     redemptionsData.forEach(redemption => {
       const perkId = redemption.perk_id;
