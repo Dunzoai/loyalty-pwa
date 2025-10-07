@@ -66,7 +66,7 @@ export default function CustomerDetailsPage() {
   };
   
   // Get activity level text
-  const getActivityLevel = (redemptionCount) => {
+  const getActivityLevel = (redemptionCount: number) => {
     if (redemptionCount === 0) return 'Inactive';
     if (redemptionCount === 1) return 'New';
     if (redemptionCount <= 3) return 'Active';
