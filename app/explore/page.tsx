@@ -33,8 +33,10 @@ export default function ExplorePage() {
 
       if (error) {
         console.error('Error fetching perks:', error);
-      } else {
-        setPerks(data as Perk[]);
+      }
+      
+      if (data) {
+        setPerks(data as any);
       }
       
       setLoading(false);
