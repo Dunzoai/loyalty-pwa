@@ -1,100 +1,84 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-
-
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
-  const search = useSearchParams();
+export default function LoginLanding() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     (async () => {
-      // If already logged in, send them somewhere smart
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setChecking(false); return; }
+      if (!session) {
+        setChecking(false);
+        return;
+      }
 
-      // Are they an admin of any business?
       const { data: adminRows } = await supabase
         .from('business_admins')
         .select('business_id')
         .eq('user_id', session.user.id)
         .limit(1);
 
-      const nextParam = search.get('next'); // optional ?next=/somewhere
       if (adminRows && adminRows.length > 0) {
-        router.replace(nextParam || '/admin'); // owners → admin by default
+        router.replace('/admin/dashboard');
       } else {
-        router.replace(nextParam || '/');      // customers → feed
+        router.replace('/');
       }
-    })().finally(() => setChecking(false));
-  }, [search, router]);
-
-  async function sendLink(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    // Preserve ?next= if present; otherwise default to /
-    const next = search.get('next') || '/';
-    const redirectTo = window.location.origin + (next.startsWith('/') ? next : '/');
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo },
-    });
-
-    if (error) setError(error.message);
-    else setSent(true);
-  }
+    })();
+  }, [router]);
 
   if (checking) {
-    return <main className="p-6">Checking session…</main>;
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </main>
+    );
   }
 
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Sign in</h1>
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
+      <div className="mb-12 text-center max-w-lg">
+        <div className="w-24 h-24 mx-auto mb-6 bg-gray-800 rounded-lg flex items-center justify-center">
+          <span className="text-2xl font-bold text-white">LOGO</span>
+        </div>
+        <h1 className="text-4xl font-bold text-white mb-3">
+          Exclusive Perks from Local Businesses
+        </h1>
+        <p className="text-gray-400 text-lg">
+          Earn your card. Unlock the network.
+        </p>
+      </div>
 
-      {sent ? (
-        <p>Magic link sent. Check your email and then return here.</p>
-      ) : (
-        <form onSubmit={sendLink} className="space-y-3 max-w-sm">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@business.com"
-            className="w-full border rounded px-3 py-2"
-          />
-          <button className="w-full border rounded px-3 py-2">Send magic link</button>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-        </form>
-      )}
-
-      {/* Handy shortcut if they’re already logged in but landed here */}
-      <div className="mt-6 space-x-4 text-sm">
+      <div className="w-full max-w-md space-y-4">
         <button
-          className="underline"
-          onClick={async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) { setError('No active session yet. Use the magic link above.'); return; }
-            const { data: adminRows } = await supabase
-              .from('business_admins')
-              .select('business_id')
-              .eq('user_id', session.user.id)
-              .limit(1);
-            router.push(adminRows && adminRows.length > 0 ? '/admin' : '/');
-          }}
+          onClick={() => router.push('/about')}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
         >
-          I’m already logged in → Go where I belong
+          Learn More
+        </button>
+        
+        <div className="text-center py-2">
+          <span className="text-gray-500 text-sm">or</span>
+        </div>
+
+        <button
+          onClick={() => router.push('/cardholder/signin')}
+          className="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors border border-gray-700"
+        >
+          Already Have a Card? Sign In
+        </button>
+      </div>
+
+      <div className="mt-8 text-center">
+        <button
+          onClick={() => router.push('/business/login')}
+          className="text-gray-500 hover:text-gray-400 text-sm"
+        >
+          Business Login
         </button>
       </div>
     </main>
