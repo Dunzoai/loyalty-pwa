@@ -157,19 +157,12 @@ export default function FeedPage() {
             )}
           </div>
 
-          {userRole === 'admin' ? (
+          {userRole === 'admin' && (
             <Link
               href="/admin/perks/new"
               className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-500 text-sm font-medium hover:bg-violet-500/30 transition-colors"
             >
               + New Perk
-            </Link>
-          ) : (
-            <Link
-              href="/cardholder/dashboard"
-              className="px-3 py-1.5 rounded-lg bg-[#161B22] text-[#F8FAFC] text-sm font-medium hover:bg-[#1F2937] transition-colors"
-            >
-              My Card
             </Link>
           )}
         </div>

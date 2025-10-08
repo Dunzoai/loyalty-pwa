@@ -10,7 +10,7 @@ export default function RedeemModalLauncher({ perkId }: { perkId: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="mt-2 inline-flex items-center rounded-xl bg-black text-white px-3 py-1.5"
+        className="rounded-xl bg-[#E6B34D] hover:bg-[#C99934] text-[#0B0F14] font-semibold px-4 py-2 transition-colors"
       >
         Redeem
       </button>
