@@ -38,8 +38,8 @@ export default function CardholderDashboard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [cardTier, setCardTier] = useState<string | null>(null);
-  const [savedPerks, setSavedPerks] = useState<SavedPerk[]>([]);
-  const [recentRedemptions, setRecentRedemptions] = useState<Redemption[]>([]);
+  const [savedPerks, setSavedPerks] = useState<any[]>([]);
+  const [recentRedemptions, setRecentRedemptions] = useState<any[]>([]);
   const [stats, setStats] = useState({
     totalRedemptions: 0,
     availablePerks: 0
@@ -82,7 +82,7 @@ export default function CardholderDashboard() {
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
-      if (saved) setSavedPerks(saved as SavedPerk[]);
+      if (saved) setSavedPerks(saved);
 
       const { data: redemptions } = await supabase
         .from('Redemptions')
@@ -96,7 +96,7 @@ export default function CardholderDashboard() {
         .order('redeemed_at', { ascending: false })
         .limit(10);
 
-      if (redemptions) setRecentRedemptions(redemptions as Redemption[]);
+      if (redemptions) setRecentRedemptions(redemptions);
 
       const { count: redemptionCount } = await supabase
         .from('Redemptions')
@@ -138,7 +138,7 @@ export default function CardholderDashboard() {
           <h1 className="text-lg font-semibold">Your Shortlist</h1>
           {cardTier && (
             <span className="rounded-full border border-[#E6B34D]/30 px-2 py-0.5 text-xs text-[#E6B34D]">
-              {tierDisplay[cardTier]}
+              {tierDisplay[cardTier as keyof typeof tierDisplay]}
             </span>
           )}
           <div className="ml-auto">
@@ -208,7 +208,7 @@ export default function CardholderDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {savedPerks.map((saved) => {
+              {savedPerks.map((saved: any) => {
                 const perk = saved.Perks;
                 if (!perk) return null;
 
@@ -273,7 +273,7 @@ export default function CardholderDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentRedemptions.map((redemption) => (
+                  {recentRedemptions.map((redemption: any) => (
                     <tr key={redemption.id} className="border-t border-[#161B22]">
                       <td className="px-4 py-3 font-medium">{redemption.Perks?.title || 'Unknown Perk'}</td>
                       <td className="px-4 py-3 text-[#9AA4B2]">{redemption.Businesses?.name || 'Unknown Business'}</td>
