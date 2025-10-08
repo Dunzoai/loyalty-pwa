@@ -21,7 +21,7 @@ interface Perk {
   title: string;
   description?: string;
   status: 'live' | 'scheduled' | 'expired' | 'draft';
-  tier: 'founder' | 'insider' | 'all';
+  tier: 'founding_shortlist' | 'shortlist' | 'all';
   redemption_count: number;
   last_redeemed?: string;
 }

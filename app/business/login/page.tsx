@@ -92,7 +92,7 @@ export default function BusinessLogin() {
             Your Regulars, Rewarded. Your Slow Days, Fixed.
           </h1>
           <p className="text-[#9AA4B2] text-lg leading-relaxed max-w-3xl mx-auto">
-            Turn your best customers into your growth channel. We give you Insider Cards, a private perks feed, and zone-level distribution—without discounting your brand to the masses.
+            Turn your best customers into your growth channel. We give you Shortlist Cards, a private perks feed, and zone-level distribution—without discounting your brand to the masses.
           </p>
         </div>
 

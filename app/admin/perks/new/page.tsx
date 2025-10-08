@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 
-type CardTier = 'insider' | 'founder' | 'influencer' | 'all';
+type CardTier = 'shortlist' | 'founding_shortlist' | 'ambassador' | 'all';
 type Biz = { id: string; name: string | null };
 
 function sanitizeFileName(name: string) {
@@ -29,12 +29,12 @@ export default function NewPerkPage() {
   const [businessTier, setBusinessTier] = useState('starter');
   const [perksAllowed, setPerksAllowed] = useState(2);
   const [currentPerkCount, setCurrentPerkCount] = useState(0);
-  const [isFounderPerk, setIsFounderPerk] = useState(false);
+  const [isFounding ShortlistPerk, setIsFounding ShortlistPerk] = useState(false);
 
   // basic info
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [tier, setTier] = useState<CardTier>('insider');
+  const [tier, setTier] = useState<CardTier>('shortlist');
   
   // schedule
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -186,7 +186,7 @@ export default function NewPerkPage() {
     }
 
     // Check perk limits (unless it's a founder perk)
-    if (!isFounderPerk && currentPerkCount >= perksAllowed) {
+    if (!isFounding ShortlistPerk && currentPerkCount >= perksAllowed) {
       setError(`You've reached your perk limit (${currentPerkCount}/${perksAllowed}). Create a founder perk or upgrade your plan.`);
       return;
     }
@@ -231,7 +231,7 @@ export default function NewPerkPage() {
         business_id: businessId,
         image_url,
         is_sponsored: false,
-        is_founder_perk: isFounderPerk,
+        is_founder_perk: isFounding ShortlistPerk,
         active: isActive,
         starts_at,
         ends_at,
@@ -332,7 +332,7 @@ export default function NewPerkPage() {
         </div>
 
         {/* Perk Limit Warning */}
-        {!isFounderPerk && currentPerkCount >= perksAllowed && (
+        {!isFounding ShortlistPerk && currentPerkCount >= perksAllowed && (
           <div className="mb-6 bg-yellow-900/30 border border-yellow-800 rounded-lg p-4">
             <p className="text-yellow-300">
               ⚠️ You've reached your perk limit ({currentPerkCount}/{perksAllowed}). 
@@ -341,25 +341,25 @@ export default function NewPerkPage() {
           </div>
         )}
 
-        {/* Founder Perk Option */}
+        {/* Founding Shortlist Perk Option */}
         <div className="mb-6 bg-gray-800 rounded-lg p-4">
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
-              id="isFounderPerk"
-              checked={isFounderPerk}
-              onChange={(e) => setIsFounderPerk(e.target.checked)}
+              id="isFounding ShortlistPerk"
+              checked={isFounding ShortlistPerk}
+              onChange={(e) => setIsFounding ShortlistPerk(e.target.checked)}
               className="h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-900"
             />
-            <label htmlFor="isFounderPerk" className="text-sm font-medium text-gray-300">
-              This is a Founder-exclusive perk
+            <label htmlFor="isFounding ShortlistPerk" className="text-sm font-medium text-gray-300">
+              This is a Founding Shortlist-exclusive perk
             </label>
           </div>
           
-          {isFounderPerk && (
+          {isFounding ShortlistPerk && (
             <div className="mt-3 bg-blue-900/30 border border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-300">
-                ✨ Founder perks are only visible to founder cardholders and don't count against your perk limit.
+                ✨ Founding Shortlist perks are only visible to founder cardholders and don't count against your perk limit.
               </p>
             </div>
           )}
@@ -447,11 +447,11 @@ export default function NewPerkPage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                {isFounderPerk ? 'Founder Card Required' : 'Required Membership Level'}
+                {isFounding ShortlistPerk ? 'Founding Shortlist Card Required' : 'Required Membership Level'}
               </label>
-              {isFounderPerk ? (
+              {isFounding ShortlistPerk ? (
                 <div className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2">
-                  Founder Only
+                  Founding Shortlist Only
                 </div>
               ) : (
                 <select
@@ -460,13 +460,13 @@ export default function NewPerkPage() {
                   onChange={(e) => setTier(e.target.value as CardTier)}
                 >
                   <option value="all">All Members</option>
-                  <option value="insider">Insider</option>
-                  <option value="founder">Founder</option>
-                  <option value="influencer">Influencer</option>
+                  <option value="insider">Shortlist</option>
+                  <option value="founder">Founding Shortlist</option>
+                  <option value="influencer">Ambassador</option>
                 </select>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                {isFounderPerk 
+                {isFounding ShortlistPerk 
                   ? 'Only founder cardholders can access this perk' 
                   : 'Select which membership tiers can access this perk'}
               </p>
@@ -566,10 +566,10 @@ export default function NewPerkPage() {
             
             <button 
               type="submit" 
-              disabled={saving || (!isFounderPerk && currentPerkCount >= perksAllowed)} 
+              disabled={saving || (!isFounding ShortlistPerk && currentPerkCount >= perksAllowed)} 
               className="flex-1 py-2 px-4 bg-blue-600 rounded text-white hover:bg-blue-500 disabled:opacity-60 transition-colors"
             >
-              {!isFounderPerk && currentPerkCount >= perksAllowed 
+              {!isFounding ShortlistPerk && currentPerkCount >= perksAllowed 
                 ? 'Perk Limit Reached' 
                 : saving 
                 ? 'Saving…' 

@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
     if (!card) return NextResponse.json({ ok: false, error: "no_active_card" })
 
-    const rank: Record<string, number> = { insider: 1, influencer: 2, founder: 3 }
+    const rank: Record<string, number> = { shortlist: 1, ambassador: 2, founding_shortlist: 3 }
     const userRank = rank[card.tier as string] ?? 0
     const requiredRank = rank[perk.required_card_tier as string] ?? 0
     

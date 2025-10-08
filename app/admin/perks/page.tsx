@@ -10,7 +10,7 @@ const CalendarMonth = dynamic(() => import('./CalendarMonth').then(m => m.defaul
   ssr: false,
 });
 
-type Tier = 'insider' | 'founder' | 'influencer';
+type Tier = 'shortlist' | 'founding_shortlist' | 'ambassador';
 type Perk = {
   id: string;
   title: string;
@@ -372,9 +372,9 @@ export default function AdminPerks() {
                 className="w-full border border-gray-700 rounded-lg px-3 py-2 bg-gray-800/50 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               >
                 <option value="all">All tiers</option>
-                <option value="insider">Insider</option>
-                <option value="influencer">Influencer</option>
-                <option value="founder">Founder</option>
+                <option value="insider">Shortlist</option>
+                <option value="influencer">Ambassador</option>
+                <option value="founder">Founding Shortlist</option>
               </select>
               <select
                 value={sortBy}
@@ -405,16 +405,16 @@ export default function AdminPerks() {
                 All Active
               </button>
               <button 
-                onClick={() => { setStatus('active'); setTier('founder'); }}
+                onClick={() => { setStatus('active'); setTier('founding_shortlist'); }}
                 className="px-3 py-1 text-xs bg-blue-900/40 text-blue-300 rounded-full hover:bg-blue-800/60 transition-colors"
               >
-                Founder Perks
+                Founding Shortlist Perks
               </button>
               <button 
-                onClick={() => { setStatus('active'); setTier('insider'); }}
+                onClick={() => { setStatus('active'); setTier('shortlist'); }}
                 className="px-3 py-1 text-xs bg-amber-900/40 text-amber-300 rounded-full hover:bg-amber-800/60 transition-colors"
               >
-                Insider Perks
+                Shortlist Perks
               </button>
               <button 
                 onClick={() => { setStatus('active'); setSortBy('popular'); }}

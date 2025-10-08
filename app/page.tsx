@@ -8,7 +8,7 @@ import LikeButton from './LikeButton';
 import SaveButton from './SaveButton'; // New import
 import RedeemModalLauncher from '@/app/redeem/RedeemModalLauncher';
 
-type CardTier = 'insider' | 'founder' | 'influencer';
+type CardTier = 'shortlist' | 'founding_shortlist' | 'ambassador';
 
 type Perk = {
   id: string;

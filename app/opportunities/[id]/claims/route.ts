@@ -15,7 +15,7 @@ export async function POST(
     .from('cards')
     .select('id')
     .eq('user_id', session.user.id)
-    .eq('tier', 'influencer')
+    .eq('tier', 'ambassador')
     .eq('status', 'active')
     .maybeSingle();
   if (!hasCard) return NextResponse.json({ ok:false, error:'no_influencer_card' }, { status: 403 });

@@ -7,7 +7,7 @@ interface PerkStat {
   id: string;
   title: string;
   status: 'live' | 'scheduled' | 'expired' | 'draft';
-  tier: 'founder' | 'insider' | 'all';
+  tier: 'founding_shortlist' | 'shortlist' | 'all';
   total_redemptions: number;
   last_redeemed: string | null;
   week_redemptions: number;
@@ -73,8 +73,8 @@ export default function PerkStatsPage() {
   // Tier badge color helper
   const getTierColor = (tier: string) => {
     switch (tier) {
-      case 'founder': return 'bg-purple-900/40 text-purple-300 border-purple-800';
-      case 'insider': return 'bg-blue-900/40 text-blue-300 border-blue-800';
+      case 'founding_shortlist': return 'bg-purple-900/40 text-purple-300 border-purple-800';
+      case 'shortlist': return 'bg-blue-900/40 text-blue-300 border-blue-800';
       case 'all': return 'bg-green-900/40 text-green-300 border-green-800';
       default: return 'bg-gray-900/40 text-gray-300 border-gray-700';
     }

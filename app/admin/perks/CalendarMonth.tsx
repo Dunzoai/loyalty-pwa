@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-type Tier = 'insider' | 'founder' | 'influencer';
+type Tier = 'shortlist' | 'founding_shortlist' | 'ambassador';
 type Perk = {
   id: string;
   title: string;
@@ -212,8 +212,8 @@ export default function CalendarMonth({ year, month, perks, redemptionData = {} 
                     key={perk.id}
                     onClick={(e) => handlePerkClick(perk, e)}
                     className={`text-xs px-1 py-0.5 rounded truncate
-                      ${perk.required_card_tier === 'founder' ? 'bg-blue-900/50 text-blue-200' : 
-                        perk.required_card_tier === 'influencer' ? 'bg-purple-900/50 text-purple-200' :
+                      ${perk.required_card_tier === 'founding_shortlist' ? 'bg-blue-900/50 text-blue-200' : 
+                        perk.required_card_tier === 'ambassador' ? 'bg-purple-900/50 text-purple-200' :
                         'bg-amber-900/50 text-amber-200'}`}
                   >
                     {perk.title}
@@ -303,8 +303,8 @@ export default function CalendarMonth({ year, month, perks, redemptionData = {} 
                         <div className="flex justify-between">
                           <span className="font-medium">{perk.title}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full
-                            ${perk.required_card_tier === 'founder' ? 'bg-blue-900/50 text-blue-200' : 
-                              perk.required_card_tier === 'influencer' ? 'bg-purple-900/50 text-purple-200' :
+                            ${perk.required_card_tier === 'founding_shortlist' ? 'bg-blue-900/50 text-blue-200' : 
+                              perk.required_card_tier === 'ambassador' ? 'bg-purple-900/50 text-purple-200' :
                               'bg-amber-900/50 text-amber-200'}`}>
                             {perk.required_card_tier}
                           </span>

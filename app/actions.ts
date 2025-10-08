@@ -104,7 +104,7 @@ export async function createRedemption(perkId: string) {
   if (!card) return { ok: false, error: "no_active_card" };
 
   // Simple tier ranking (adjust if your enum meaning changes)
-  const rank: Record<string, number> = { insider: 1, influencer: 2, founder: 3 };
+  const rank: Record<string, number> = { shortlist: 1, ambassador: 2, founding_shortlist: 3 };
   const userRank = rank[card.tier as string] ?? 0;
   const requiredRank = rank[perk.required_card_tier as string] ?? 0;
   if (userRank < requiredRank) return { ok: false, error: "insufficient_tier" };
