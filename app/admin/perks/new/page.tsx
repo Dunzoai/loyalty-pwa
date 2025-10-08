@@ -29,7 +29,7 @@ export default function NewPerkPage() {
   const [businessTier, setBusinessTier] = useState('starter');
   const [perksAllowed, setPerksAllowed] = useState(2);
   const [currentPerkCount, setCurrentPerkCount] = useState(0);
-  const [isFounding ShortlistPerk, setIsFounding ShortlistPerk] = useState(false);
+  const [isFoundingShortlistPerk, setIsFoundingShortlistPerk] = useState(false);
 
   // basic info
   const [title, setTitle] = useState('');
@@ -186,7 +186,7 @@ export default function NewPerkPage() {
     }
 
     // Check perk limits (unless it's a founder perk)
-    if (!isFounding ShortlistPerk && currentPerkCount >= perksAllowed) {
+    if (!isFoundingShortlistPerk && currentPerkCount >= perksAllowed) {
       setError(`You've reached your perk limit (${currentPerkCount}/${perksAllowed}). Create a founder perk or upgrade your plan.`);
       return;
     }
@@ -231,7 +231,7 @@ export default function NewPerkPage() {
         business_id: businessId,
         image_url,
         is_sponsored: false,
-        is_founder_perk: isFounding ShortlistPerk,
+        is_founder_perk: isFoundingShortlistPerk,
         active: isActive,
         starts_at,
         ends_at,
@@ -332,7 +332,7 @@ export default function NewPerkPage() {
         </div>
 
         {/* Perk Limit Warning */}
-        {!isFounding ShortlistPerk && currentPerkCount >= perksAllowed && (
+        {!isFoundingShortlistPerk && currentPerkCount >= perksAllowed && (
           <div className="mb-6 bg-yellow-900/30 border border-yellow-800 rounded-lg p-4">
             <p className="text-yellow-300">
               ⚠️ You've reached your perk limit ({currentPerkCount}/{perksAllowed}). 
@@ -346,17 +346,17 @@ export default function NewPerkPage() {
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
-              id="isFounding ShortlistPerk"
-              checked={isFounding ShortlistPerk}
-              onChange={(e) => setIsFounding ShortlistPerk(e.target.checked)}
+              id="isFoundingShortlistPerk"
+              checked={isFoundingShortlistPerk}
+              onChange={(e) => setIsFoundingShortlistPerk(e.target.checked)}
               className="h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-900"
             />
-            <label htmlFor="isFounding ShortlistPerk" className="text-sm font-medium text-gray-300">
+            <label htmlFor="isFoundingShortlistPerk" className="text-sm font-medium text-gray-300">
               This is a Founding Shortlist-exclusive perk
             </label>
           </div>
           
-          {isFounding ShortlistPerk && (
+          {isFoundingShortlistPerk && (
             <div className="mt-3 bg-blue-900/30 border border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-300">
                 ✨ Founding Shortlist perks are only visible to founder cardholders and don't count against your perk limit.
@@ -447,9 +447,9 @@ export default function NewPerkPage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                {isFounding ShortlistPerk ? 'Founding Shortlist Card Required' : 'Required Membership Level'}
+                {isFoundingShortlistPerk ? 'Founding Shortlist Card Required' : 'Required Membership Level'}
               </label>
-              {isFounding ShortlistPerk ? (
+              {isFoundingShortlistPerk ? (
                 <div className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2">
                   Founding Shortlist Only
                 </div>
@@ -466,7 +466,7 @@ export default function NewPerkPage() {
                 </select>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                {isFounding ShortlistPerk 
+                {isFoundingShortlistPerk 
                   ? 'Only founder cardholders can access this perk' 
                   : 'Select which membership tiers can access this perk'}
               </p>
@@ -566,10 +566,10 @@ export default function NewPerkPage() {
             
             <button 
               type="submit" 
-              disabled={saving || (!isFounding ShortlistPerk && currentPerkCount >= perksAllowed)} 
+              disabled={saving || (!isFoundingShortlistPerk && currentPerkCount >= perksAllowed)} 
               className="flex-1 py-2 px-4 bg-blue-600 rounded text-white hover:bg-blue-500 disabled:opacity-60 transition-colors"
             >
-              {!isFounding ShortlistPerk && currentPerkCount >= perksAllowed 
+              {!isFoundingShortlistPerk && currentPerkCount >= perksAllowed 
                 ? 'Perk Limit Reached' 
                 : saving 
                 ? 'Saving…' 
