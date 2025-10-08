@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image';
 
 export default function CardholderSignIn() {
   const [email, setEmail] = useState('');
@@ -11,6 +12,8 @@ export default function CardholderSignIn() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   async function handleSendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -33,50 +36,107 @@ export default function CardholderSignIn() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-black flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
+  if (sent) {
+    return (
+      <main className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex items-center justify-center px-4">
         <button
           onClick={() => router.push('/login')}
-          className="text-gray-400 hover:text-white mb-8 flex items-center"
+          className="absolute left-4 top-4 text-[#9AA4B2] hover:text-[#F8FAFC] transition-colors text-sm"
         >
           ← Back
         </button>
 
-        <h1 className="text-3xl font-bold text-white mb-2">Cardholder Sign In</h1>
-        <p className="text-gray-400 mb-8">Enter your email to access your perks</p>
-
-        {sent ? (
-          <div className="bg-green-900/20 border border-green-800 rounded-lg p-6 text-center">
-            <p className="text-green-400 font-semibold mb-2">📧 Check your email!</p>
-            <p className="text-gray-300 text-sm">We sent you a magic link. Click it to view your perks.</p>
+        <div className="w-full max-w-md">
+          <div className="mx-auto mb-8 w-20 h-20">
+            <Image src="/Shortlist_Logo.png" alt="The Shortlist" width={80} height={80} />
           </div>
-        ) : (
-          <form onSubmit={handleSendLink} className="space-y-4">
-            <div>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-              />
+
+          <div className="rounded-2xl bg-[#0F1217]/70 backdrop-blur-sm border border-[#161B22] p-8 shadow-[0_6px_24px_rgba(0,0,0,0.24)]">
+            <h1 className="text-2xl font-semibold tracking-tight text-[#F8FAFC]">Check your inbox</h1>
+            <p className="mt-2 text-[#9AA4B2]">
+              We sent a sign-in link to <span className="text-[#F8FAFC] font-medium">{email}</span>
+            </p>
+
+            <div className="mt-6 p-4 bg-green-900/20 border border-green-800 rounded-lg">
+              <p className="text-green-400 text-sm">📧 Magic link sent! Click it to access your perks.</p>
             </div>
 
+            <button
+              onClick={() => setSent(false)}
+              className="mt-4 text-[#E6B34D] hover:text-[#d4a340] text-sm transition-colors"
+            >
+              Use a different email
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex items-center justify-center px-4">
+      <button
+        onClick={() => router.push('/login')}
+        className="absolute left-4 top-4 text-[#9AA4B2] hover:text-[#F8FAFC] transition-colors text-sm"
+      >
+        ← Back
+      </button>
+
+      <div className="w-full max-w-md">
+        <div className="mx-auto mb-8 w-20 h-20">
+          <Image src="/Shortlist_Logo.png" alt="The Shortlist" width={80} height={80} />
+        </div>
+
+        <div className="rounded-2xl bg-[#0F1217]/70 backdrop-blur-sm border border-[#161B22] p-8 shadow-[0_6px_24px_rgba(0,0,0,0.24)]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#F8FAFC]">
+            Sign in to your Shortlist
+          </h1>
+          <p className="mt-2 text-[#9AA4B2]">
+            We'll email you a secure, one-time link.
+          </p>
+
+          <form onSubmit={handleSendLink} className="mt-6">
+            <label htmlFor="email" className="block text-sm mb-2 text-[#9AA4B2]">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full rounded-xl bg-[#0F1217] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 outline-none focus-visible:ring-2 focus-visible:ring-[#E6B34D] focus-visible:ring-offset-0 transition-all duration-150"
+            />
+
             {error && (
-              <p className="text-red-500 text-sm">{error}</p>
+              <p className="mt-2 text-red-400 text-sm" role="alert" aria-live="polite">
+                {error}
+              </p>
             )}
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              disabled={!isValidEmail || loading}
+              className="mt-4 w-full rounded-xl bg-[#E6B34D] text-[#0B0F14] font-semibold py-3 transition-all duration-150 hover:bg-[#d4a340] disabled:opacity-55 disabled:cursor-not-allowed"
             >
-              {loading ? 'Sending...' : 'Send Magic Link'}
+              {loading ? 'Sending...' : 'Email me a sign-in link'}
             </button>
           </form>
-        )}
+
+          <p className="mt-6 text-sm text-[#9AA4B2]">
+            Don't have a card yet?{' '}
+            <button
+              onClick={() => router.push('/about')}
+              className="text-[#E6B34D] hover:text-[#d4a340] transition-colors"
+            >
+              How to get on the Shortlist →
+            </button>
+          </p>
+        </div>
       </div>
     </main>
   );

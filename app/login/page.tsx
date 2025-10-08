@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image';
 
 export default function LoginLanding() {
   const router = useRouter();
@@ -33,50 +34,46 @@ export default function LoginLanding() {
 
   if (checking) {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <main className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
+        <p className="text-[#9AA4B2]">Loading...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
-      <div className="mb-12 text-center max-w-lg">
-        <div className="w-24 h-24 mx-auto mb-6 bg-gray-800 rounded-lg flex items-center justify-center">
-          <span className="text-2xl font-bold text-white">LOGO</span>
+    <main className="min-h-screen bg-[#0B0F14] flex flex-col items-center justify-center p-6">
+      <div className="mb-12 text-center max-w-2xl">
+        <div className="w-32 h-32 mx-auto mb-8">
+          <Image src="/Shortlist_Logo.png" alt="The Shortlist" width={128} height={128} />
         </div>
-        <h1 className="text-4xl font-bold text-white mb-3">
-          Exclusive Perks from Local Businesses
+        <h1 className="text-5xl font-bold text-[#F8FAFC] mb-4">
+          The Shortlist for Loyal Locals
         </h1>
-        <p className="text-gray-400 text-lg">
-          Earn your card. Unlock the network.
+        <p className="text-[#9AA4B2] text-lg leading-relaxed">
+          Cards aren't bought—they're earned. Get anointed by your favorite spots and unlock a private feed of perks across town.
         </p>
       </div>
 
       <div className="w-full max-w-md space-y-4">
         <button
           onClick={() => router.push('/about')}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
+          className="w-full bg-[#E6B34D] hover:bg-[#d4a340] text-[#0B0F14] font-semibold py-4 px-6 rounded-lg transition-colors"
         >
-          Learn More
+          What's the Shortlist?
         </button>
         
-        <div className="text-center py-2">
-          <span className="text-gray-500 text-sm">or</span>
-        </div>
-
         <button
           onClick={() => router.push('/cardholder/signin')}
-          className="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors border border-gray-700"
+          className="w-full bg-[#0F1217] hover:bg-[#161B22] text-[#F8FAFC] font-semibold py-4 px-6 rounded-lg transition-colors border border-[#161B22]"
         >
-          Already Have a Card? Sign In
+          Already on the Shortlist? Sign In
         </button>
       </div>
 
       <div className="mt-8 text-center">
         <button
           onClick={() => router.push('/business/login')}
-          className="text-gray-500 hover:text-gray-400 text-sm"
+          className="text-[#9AA4B2] hover:text-[#F8FAFC] text-sm transition-colors"
         >
           Business Login
         </button>
