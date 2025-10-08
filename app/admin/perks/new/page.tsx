@@ -20,34 +20,28 @@ export default function NewPerkPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // admin + businesses context
   const [isAdmin, setIsAdmin] = useState(false);
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [businessId, setBusinessId] = useState<string | null>(null);
 
-  // Subscription tier tracking
   const [businessTier, setBusinessTier] = useState('starter');
   const [perksAllowed, setPerksAllowed] = useState(2);
   const [currentPerkCount, setCurrentPerkCount] = useState(0);
   const [isFoundingShortlistPerk, setIsFoundingShortlistPerk] = useState(false);
 
-  // basic info
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tier, setTier] = useState<CardTier>('shortlist');
   
-  // schedule
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>('');
   const [isActive, setIsActive] = useState(true);
   
-  // redemption rules
   const [maxRedemptionsTotal, setMaxRedemptionsTotal] = useState<string>('');
   const [maxRedemptionsPerUser, setMaxRedemptionsPerUser] = useState<string>('1');
   const [redemptionInstructions, setRedemptionInstructions] = useState('');
   const [value, setValue] = useState<string>('');
   
-  // media
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -57,12 +51,10 @@ export default function NewPerkPage() {
         setLoading(true);
         setError(null);
 
-        // must be logged in
         const { data: { session }, error: sessErr } = await supabase.auth.getSession();
         if (sessErr) throw sessErr;
         if (!session) throw new Error('You must be signed in.');
 
-        // check role from public.Users
         const { data: userRow, error: roleErr } = await supabase
           .from('Users')
           .select('role')
@@ -76,10 +68,8 @@ export default function NewPerkPage() {
         }
         setIsAdmin(true);
 
-        // load businesses you admin
         let bizRows: Biz[] = [];
 
-        // prefer the view if it exists
         const { data: viewRows, error: viewErr } = await supabase
           .from('my_businesses')
           .select('id, name');
@@ -87,7 +77,6 @@ export default function NewPerkPage() {
         if (!viewErr && Array.isArray(viewRows)) {
           bizRows = viewRows as Biz[];
         } else {
-          // fallback: join business_admins -> Businesses
           const { data: joinRows, error: joinErr } = await supabase
             .from('business_admins')
             .select('business_id, Businesses:business_id(id,name)')
@@ -105,9 +94,8 @@ export default function NewPerkPage() {
 
         if (!bizRows.length) throw new Error('No business found for your admin account.');
         setBusinesses(bizRows);
-        setBusinessId(bizRows[0].id); // default to first
+        setBusinessId(bizRows[0].id);
 
-        // Check business tier and perk limits
         if (bizRows.length > 0) {
           const { data: bizDetails } = await supabase
             .from('businesses')
@@ -115,7 +103,6 @@ export default function NewPerkPage() {
             .eq('id', bizRows[0].id)
             .single();
 
-          // Count current active perks (excluding founder perks)
           const { count: currentPerks } = await supabase
             .from('perks')
             .select('*', { count: 'exact', head: true })
@@ -135,7 +122,6 @@ export default function NewPerkPage() {
     })();
   }, []);
 
-  // Update when business selection changes
   useEffect(() => {
     if (businessId && businesses.length > 0) {
       (async () => {
@@ -159,13 +145,10 @@ export default function NewPerkPage() {
     }
   }, [businessId]);
 
-  // Update image preview when file changes
   useEffect(() => {
     if (imageFile) {
       const objectUrl = URL.createObjectURL(imageFile);
       setImagePreview(objectUrl);
-      
-      // Clean up the URL when component unmounts
       return () => URL.revokeObjectURL(objectUrl);
     } else {
       setImagePreview(null);
@@ -185,7 +168,6 @@ export default function NewPerkPage() {
       return;
     }
 
-    // Check perk limits (unless it's a founder perk)
     if (!isFoundingShortlistPerk && currentPerkCount >= perksAllowed) {
       setError(`You've reached your perk limit (${currentPerkCount}/${perksAllowed}). Create a founder perk or upgrade your plan.`);
       return;
@@ -194,86 +176,65 @@ export default function NewPerkPage() {
     setSaving(true);
 
     try {
-      // 1) optional image upload
       let image_url: string | null = null;
       if (imageFile) {
         const cleanName = sanitizeFileName(imageFile.name || 'perk.jpg');
-        const key = `${businessId}/${Date.now()}-${cleanName}`;
-
-        const { error: upErr } = await supabase
-          .storage
+        const filePath = `perks/${Date.now()}-${cleanName}`;
+        const { error: uploadErr } = await supabase.storage
           .from('perk-images')
-          .upload(key, imageFile, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: imageFile.type || 'image/*',
-          });
+          .upload(filePath, imageFile, { upsert: false });
 
-        if (upErr) throw new Error(`Image upload failed: ${upErr.message}`);
+        if (uploadErr) throw uploadErr;
 
-        const { data: pub } = supabase.storage.from('perk-images').getPublicUrl(key);
-        image_url = pub?.publicUrl ?? null;
+        const { data: urlData } = supabase.storage
+          .from('perk-images')
+          .getPublicUrl(filePath);
+        image_url = urlData.publicUrl;
       }
 
-      // 2) Parse date strings into ISO format for database
-      const starts_at = startDate ? new Date(startDate).toISOString() : new Date().toISOString();
-      const ends_at = endDate ? new Date(endDate).toISOString() : null;
-      
-      // 3) Parse redemptions
-      const max_redemptions_total = maxRedemptionsTotal ? parseInt(maxRedemptionsTotal, 10) : null;
-      const max_redemptions_per_user = maxRedemptionsPerUser ? parseInt(maxRedemptionsPerUser, 10) : 1;
-
-      // 4) insert perk with lowercase table name and founder flag
-      const { error: insErr } = await supabase.from('perks').insert({
+      const perkData: any = {
+        business_id: businessId,
         title: title.trim(),
         description: description.trim() || null,
-        required_card_tier: tier,
-        business_id: businessId,
-        image_url,
-        is_sponsored: false,
-        is_founder_perk: isFoundingShortlistPerk,
+        required_card_tier: isFoundingShortlistPerk ? 'founding_shortlist' : tier,
         active: isActive,
-        starts_at,
-        ends_at,
-        max_redemptions_total,
-        max_redemptions_per_user,
+        starts_at: startDate || null,
+        ends_at: endDate || null,
+        max_redemptions_total: maxRedemptionsTotal ? parseInt(maxRedemptionsTotal, 10) : null,
+        max_redemptions_per_user: maxRedemptionsPerUser ? parseInt(maxRedemptionsPerUser, 10) : 1,
         redemption_instructions: redemptionInstructions.trim() || null,
         value: value.trim() || null,
-      });
+        image_url,
+        is_founder_perk: isFoundingShortlistPerk,
+      };
 
-      if (insErr) throw insErr;
+      const { error: insertErr } = await supabase.from('perks').insert([perkData]);
+      if (insertErr) throw insertErr;
 
-      // 5) back to dashboard
-      router.push('/admin/dashboard');
-    } catch (e: any) {
-      setError(e.message ?? String(e));
+      router.push('/admin/perks');
+    } catch (err: any) {
+      setError(err.message ?? String(err));
       setSaving(false);
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 relative">
-            <div className="absolute top-0 left-0 w-full h-full border-4 border-gray-700 rounded-full"></div>
-            <div className="absolute top-0 left-0 w-full h-full border-t-4 border-blue-500 rounded-full animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-400">Loading...</p>
-        </div>
+      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex items-center justify-center">
+        <p className="text-[#9AA4B2]">Loading...</p>
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-black text-gray-100 p-6">
-        <div className="max-w-xl mx-auto bg-gray-800 rounded-lg p-6">
+      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] p-6">
+        <div className="max-w-xl mx-auto bg-[#0F1217] border border-[#161B22] rounded-[14px] p-6">
           <h1 className="text-xl font-semibold mb-2">Admin Access Required</h1>
-          <p className="text-red-400 mb-4">{error ?? 'You do not have permission to access this page.'}</p>
+          <p className="text-[#EF4444] mb-4">{error ?? 'You do not have permission to access this page.'}</p>
           <Link 
             href="/"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors"
+            className="inline-block px-4 py-2 bg-[#E6B34D] hover:bg-[#C99934] text-[#0B0F14] font-semibold rounded-xl transition-colors"
           >
             Return to Home
           </Link>
@@ -283,30 +244,47 @@ export default function NewPerkPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-gray-100">
-      <header className="bg-gray-900 shadow sticky top-0 z-10 py-4">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-bold mb-3 sm:mb-0">Add New Perk</h1>
+    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] pb-24">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-20 bg-[#111827] border-b border-[#161B22]">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Add New Perk</h1>
           <div className="flex gap-2">
             <button 
               type="button" 
               onClick={() => router.back()}
-              className="px-4 py-2 border border-gray-700 rounded hover:bg-gray-800 transition-colors"
+              className="rounded-xl border border-[#161B22] bg-[#0F1217] text-[#F8FAFC] px-3.5 py-2 hover:bg-white/5 transition-colors"
             >
               Cancel
+            </button>
+            <button 
+              type="submit"
+              form="perk-form"
+              disabled={saving || (!isFoundingShortlistPerk && currentPerkCount >= perksAllowed)}
+              className="rounded-xl bg-[#E6B34D] hover:bg-[#C99934] text-[#0B0F14] font-semibold px-3.5 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save Perk'}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {/* Error Message */}
+        {error && (
+          <div className="rounded-[14px] bg-[#EF4444]/10 border border-[#EF4444] p-4">
+            <p className="text-[#EF4444] text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Business Selection */}
-        <div className="mb-6 bg-gray-800 rounded-lg p-4">
+        <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)]">
+          <h2 className="text-sm font-semibold mb-3">Business</h2>
+          
           {businesses.length > 1 ? (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Business</label>
               <select
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] text-[#F8FAFC] px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                 value={businessId ?? ''}
                 onChange={(e) => setBusinessId(e.target.value)}
               >
@@ -318,264 +296,217 @@ export default function NewPerkPage() {
               </select>
             </div>
           ) : (
-            <div>
-              <span className="text-sm text-gray-400">Business:</span>{' '}
-              <span className="font-medium text-white">
-                {businesses[0]?.name ?? businesses[0]?.id}
-              </span>
+            <div className="text-[#F8FAFC] font-medium">
+              {businesses[0]?.name ?? businesses[0]?.id}
             </div>
           )}
-          <div className="mt-2 text-sm text-gray-400">
-            Tier: <span className="text-white capitalize">{businessTier}</span> • 
-            Perks: <span className="text-white">{currentPerkCount}/{perksAllowed}</span>
+          
+          <div className="mt-3 text-sm text-[#9AA4B2]">
+            Tier: <span className="text-[#F8FAFC] capitalize">{businessTier}</span> • 
+            Perks: <span className="text-[#F8FAFC]">{currentPerkCount}/{perksAllowed}</span>
           </div>
-        </div>
+        </section>
 
         {/* Perk Limit Warning */}
         {!isFoundingShortlistPerk && currentPerkCount >= perksAllowed && (
-          <div className="mb-6 bg-yellow-900/30 border border-yellow-800 rounded-lg p-4">
-            <p className="text-yellow-300">
+          <div className="rounded-[14px] bg-[#F59E0B]/10 border border-[#F59E0B] p-4">
+            <p className="text-[#F59E0B] text-sm">
               ⚠️ You've reached your perk limit ({currentPerkCount}/{perksAllowed}). 
               You can still create a founder-exclusive perk, or deactivate an existing perk to add a new one.
             </p>
           </div>
         )}
 
-        {/* Founding Shortlist Perk Option */}
-        <div className="mb-6 bg-gray-800 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
+        {/* Founding Shortlist Perk Toggle */}
+        <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)]">
+          <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               id="isFoundingShortlistPerk"
               checked={isFoundingShortlistPerk}
               onChange={(e) => setIsFoundingShortlistPerk(e.target.checked)}
-              className="h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-900"
+              className="h-5 w-5 rounded bg-white/10 accent-[#2CE8BD] border border-[#161B22]"
             />
-            <label htmlFor="isFoundingShortlistPerk" className="text-sm font-medium text-gray-300">
-              This is a Founding Shortlist-exclusive perk
-            </label>
-          </div>
+            <span className="text-sm font-medium">This is a Founding Shortlist-exclusive perk</span>
+          </label>
           
           {isFoundingShortlistPerk && (
-            <div className="mt-3 bg-blue-900/30 border border-blue-800 rounded-lg p-3">
-              <p className="text-sm text-blue-300">
+            <div className="mt-3 rounded-xl bg-[#2CE8BD]/10 border border-[#2CE8BD]/30 p-3">
+              <p className="text-sm text-[#2CE8BD]">
                 ✨ Founding Shortlist perks are only visible to founder cardholders and don't count against your perk limit.
               </p>
             </div>
           )}
-        </div>
+        </section>
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {/* Basic Info Section */}
-          <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-            <h2 className="text-lg font-medium border-b border-gray-700 pb-2">Basic Information</h2>
+        <form id="perk-form" className="space-y-6" onSubmit={handleSubmit}>
+          {/* Basic Information */}
+          <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)] space-y-4">
+            <h2 className="text-sm font-semibold">Basic Information</h2>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Title*</label>
+              <label className="block text-sm mb-1">
+                Title <span className="text-[#9AA4B2]">({title.length}/50)</span>
+              </label>
               <input
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                 placeholder="e.g. 2 for 1 Smoothies"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={50}
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Keep it concise and appealing (50 characters max)</p>
+              <p className="text-xs text-[#9AA4B2] mt-1">Keep it concise and appealing</p>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+              <label className="block text-sm mb-1">Description</label>
               <textarea
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                 placeholder="Describe what customers get and any conditions"
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Add details like how to redeem, limitations, etc.</p>
+              <p className="text-xs text-[#9AA4B2] mt-1">Add details like how to redeem, limitations, etc.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Value</label>
+              <label className="block text-sm mb-1">Value</label>
               <input
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                 placeholder="e.g. $5 off, 20% discount, Free dessert"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Specify the monetary value or discount percentage</p>
+              <p className="text-xs text-[#9AA4B2] mt-1">Specify the monetary value or discount percentage</p>
             </div>
-          </div>
+          </section>
 
-          {/* Availability Section */}
-          <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-            <h2 className="text-lg font-medium border-b border-gray-700 pb-2">Availability</h2>
+          {/* Availability */}
+          <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)] space-y-4">
+            <h2 className="text-sm font-semibold">Availability</h2>
             
-            <div className="flex items-center">
+            <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 id="isActive"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="mr-2"
+                className="h-5 w-5 rounded bg-white/10 accent-[#2CE8BD] border border-[#161B22]"
               />
-              <label htmlFor="isActive" className="text-sm font-medium text-gray-300">Active (immediately available)</label>
-            </div>
+              <span className="text-sm">Active (immediately available)</span>
+            </label>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Start Date</label>
+                <label className="block text-sm mb-1">Start Date</label>
                 <input
                   type="date"
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                  className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">End Date (Optional)</label>
+                <label className="block text-sm mb-1">End Date <span className="text-[#9AA4B2]">(Optional)</span></label>
                 <input
                   type="date"
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                  className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">Leave empty for no expiration</p>
+                <p className="text-xs text-[#9AA4B2] mt-1">Leave empty for no expiration</p>
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {isFoundingShortlistPerk ? 'Founding Shortlist Card Required' : 'Required Membership Level'}
+              <label className="block text-sm mb-1">
+                {isFoundingShortlistPerk ? 'Founding Shortlist Only' : 'Required Membership Level'}
               </label>
               {isFoundingShortlistPerk ? (
-                <div className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2">
-                  Founding Shortlist Only
+                <div className="rounded-xl bg-[#E6B34D]/10 border border-[#E6B34D]/30 px-4 py-3">
+                  <span className="text-[#E6B34D] font-medium">Founding Shortlist</span>
                 </div>
               ) : (
                 <select
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                  className="w-full rounded-xl bg-[#111827] border border-[#161B22] text-[#F8FAFC] px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
                   value={tier}
                   onChange={(e) => setTier(e.target.value as CardTier)}
                 >
+                  <option value="shortlist">Shortlist</option>
+                  <option value="ambassador">Ambassador</option>
+                  <option value="founding_shortlist">Founding Shortlist</option>
                   <option value="all">All Members</option>
-                  <option value="insider">Shortlist</option>
-                  <option value="founder">Founding Shortlist</option>
-                  <option value="influencer">Ambassador</option>
                 </select>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                {isFoundingShortlistPerk 
-                  ? 'Only founder cardholders can access this perk' 
-                  : 'Select which membership tiers can access this perk'}
-              </p>
             </div>
-          </div>
+          </section>
 
-          {/* Redemption Rules Section */}
-          <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-            <h2 className="text-lg font-medium border-b border-gray-700 pb-2">Redemption Rules</h2>
+          {/* Redemption Rules */}
+          <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)] space-y-4">
+            <h2 className="text-sm font-semibold">Redemption Rules</h2>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Maximum Total Redemptions (Optional)</label>
+              <label className="block text-sm mb-1">Max Redemptions Per User</label>
               <input
                 type="number"
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
-                placeholder="e.g. 100"
-                min="1"
-                value={maxRedemptionsTotal}
-                onChange={(e) => setMaxRedemptionsTotal(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 mt-1">Limit total redemptions across all customers (leave empty for unlimited)</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Max Redemptions Per Customer
-              </label>
-              <input
-                type="number"
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
-                placeholder="e.g. 1"
-                min="1"
-                max="10"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
+                placeholder="1"
                 value={maxRedemptionsPerUser}
                 onChange={(e) => setMaxRedemptionsPerUser(e.target.value)}
+                min="1"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                How many times can each individual customer redeem this perk? (Default: 1)
-              </p>
+              <p className="text-xs text-[#9AA4B2] mt-1">How many times can one person redeem this?</p>
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Redemption Instructions</label>
+              <label className="block text-sm mb-1">Total Redemption Limit <span className="text-[#9AA4B2]">(Optional)</span></label>
+              <input
+                type="number"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
+                placeholder="Leave empty for unlimited"
+                value={maxRedemptionsTotal}
+                onChange={(e) => setMaxRedemptionsTotal(e.target.value)}
+                min="1"
+              />
+              <p className="text-xs text-[#9AA4B2] mt-1">Total number of times this perk can be redeemed by all users</p>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1">Redemption Instructions</label>
               <textarea
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
-                placeholder="Instructions for staff when redeeming this perk"
+                className="w-full rounded-xl bg-[#111827] border border-[#161B22] px-4 py-3 text-[#F8FAFC] placeholder:text-[#9AA4B2]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A86FF]"
+                placeholder="Tell customers how to redeem (e.g., Show QR code at checkout)"
                 rows={3}
                 value={redemptionInstructions}
                 onChange={(e) => setRedemptionInstructions(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">These instructions will be visible to staff when validating the perk</p>
             </div>
-          </div>
+          </section>
 
-          {/* Media Section */}
-          <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-            <h2 className="text-lg font-medium border-b border-gray-700 pb-2">Media</h2>
+          {/* Image Upload */}
+          <section className="rounded-[14px] bg-[#0F1217] border border-[#161B22] p-4 shadow-[0_6px_24px_rgba(0,0,0,0.24)] space-y-4">
+            <h2 className="text-sm font-semibold">Perk Image</h2>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Perk Image</label>
+              <label className="block text-sm mb-1">Upload Image <span className="text-[#9AA4B2]">(Optional)</span></label>
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
+                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                className="w-full text-sm text-[#9AA4B2] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#E6B34D] file:text-[#0B0F14] hover:file:bg-[#C99934] file:cursor-pointer"
               />
-              <p className="text-xs text-gray-500 mt-1">Recommended: 600x400px, JPEG or PNG format</p>
-              
-              {imagePreview && (
-                <div className="mt-3 p-2 border border-gray-700 rounded bg-gray-900">
-                  <p className="text-xs text-gray-400 mb-1">Image Preview:</p>
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className="max-h-40 rounded mx-auto"
-                  />
-                </div>
-              )}
+              <p className="text-xs text-[#9AA4B2] mt-1">Recommended: 1200x900px, max 5MB</p>
             </div>
-          </div>
 
-          {/* Form Actions */}
-          {error && (
-            <div className="bg-red-900/30 border border-red-800 rounded-lg p-3">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button 
-              type="button" 
-              onClick={() => router.back()}
-              className="flex-1 py-2 px-4 border border-gray-700 rounded hover:bg-gray-800 transition-colors"
-            >
-              Cancel
-            </button>
-            
-            <button 
-              type="submit" 
-              disabled={saving || (!isFoundingShortlistPerk && currentPerkCount >= perksAllowed)} 
-              className="flex-1 py-2 px-4 bg-blue-600 rounded text-white hover:bg-blue-500 disabled:opacity-60 transition-colors"
-            >
-              {!isFoundingShortlistPerk && currentPerkCount >= perksAllowed 
-                ? 'Perk Limit Reached' 
-                : saving 
-                ? 'Saving…' 
-                : 'Save Perk'}
-            </button>
-          </div>
+            {imagePreview && (
+              <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[#161B22]">
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </section>
         </form>
       </main>
     </div>
