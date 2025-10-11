@@ -52,7 +52,8 @@ export default function BarcodeModal({ perkId, onClose }: Props) {
 
   const qrSrc = useMemo(() => {
     if (state.phase !== 'ready') return '';
-    const validationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/business/validate?code=${state.code}`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const validationUrl = `${baseUrl}/business/validate?code=${state.code}`;
     return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(validationUrl)}&size=260x260&bgcolor=FFF3CC&color=0B0F14&margin=4`;
   }, [state]);
 
