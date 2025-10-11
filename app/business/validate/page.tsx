@@ -1,8 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-
-
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -15,36 +13,72 @@ interface ValidationResult {
     description: string;
     value?: string;
     business_name?: string;
+    redemption_instructions?: string;
   };
   user?: {
     name: string;
     email: string;
   };
   error?: string;
+  redemptionCount?: number;
+  maxRedemptions?: number;
+}
+
+const COLORS = {
+  bg: '#0B0F14',
+  card: '#0F1217',
+  cardElevated: '#111827',
+  border: '#161B22',
+  text: '#F8FAFC',
+  textDim: '#9AA4B2',
+  brass: '#E6B34D',
+  brass600: '#C99934',
+  mint: '#2CE8BD',
+  red: '#EF4444',
+  amber: '#F59E0B',
+};
+
+function Banner({ state, message }: { state: 'valid' | 'limit' | 'invalid' | 'redeemed'; message?: string }) {
+  const stateConfig = {
+    valid: { label: message || 'Valid code', bg: COLORS.mint, icon: '✓' },
+    limit: { label: message || 'Limit reached', bg: COLORS.amber, icon: '⚠' },
+    invalid: { label: message || 'Code not valid', bg: COLORS.red, icon: '✕' },
+    redeemed: { label: message || 'Successfully redeemed!', bg: COLORS.mint, icon: '✓' },
+  };
+  
+  const config = stateConfig[state];
+  
+  return (
+    <div className="rounded-t-2xl p-6 text-center" style={{ background: config.bg }}>
+      <div className="text-4xl font-bold mb-2" style={{ color: COLORS.bg }}>{config.icon}</div>
+      <h1 className="text-xl font-semibold" style={{ color: COLORS.bg }}>{config.label}</h1>
+    </div>
+  );
 }
 
 export default function BusinessValidatePage() {
   const searchParams = useSearchParams();
-  const code = searchParams.get('code');
+  const codeFromUrl = searchParams.get('code');
   
+  const [manualCode, setManualCode] = useState('');
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [hasValidated, setHasValidated] = useState(false);
 
   useEffect(() => {
-    if (code) {
-      validateCode(code);
+    if (codeFromUrl) {
+      validateCode(codeFromUrl);
     }
-  }, [code]);
+  }, [codeFromUrl]);
 
   const validateCode = async (redemptionCode: string) => {
     setLoading(true);
     setResult(null);
+    setHasValidated(true);
     
     try {
-      // Check if it's a TEMP code
       if (redemptionCode.startsWith('TEMP_')) {
-        // Parse TEMP_userId_perkId_timestamp
         const parts = redemptionCode.split('_');
         if (parts.length !== 4) {
           throw new Error('Invalid code format');
@@ -52,19 +86,18 @@ export default function BusinessValidatePage() {
 
         const [, userId, perkId, timestamp] = parts;
         
-        // Check if expired (45 seconds)
         const codeTime = parseInt(timestamp);
         const now = Date.now();
         if (now - codeTime > 45000) {
           setResult({
             success: false,
             message: 'Code Expired',
-            error: 'This code has expired. Please generate a new one.'
+            error: 'This code has expired. Please ask the customer to generate a new one.'
           });
+          setLoading(false);
           return;
         }
 
-        // Get perk details
         const { data: perk, error: perkError } = await supabase
           .from('perks')
           .select('*, businesses:business_id(name)')
@@ -75,14 +108,12 @@ export default function BusinessValidatePage() {
           throw new Error('Invalid perk');
         }
 
-        // Get user details
         const { data: userData } = await supabase
           .from('users')
           .select('name, email')
           .eq('id', userId)
           .single();
 
-        // Check if already redeemed
         const { count } = await supabase
           .from('perk_redemptions')
           .select('*', { count: 'exact', head: true })
@@ -95,18 +126,21 @@ export default function BusinessValidatePage() {
           setResult({
             success: false,
             message: 'Limit Reached',
-            error: `This customer has already redeemed this perk ${count}/${maxRedemptions} times`,
+            error: `This customer has already redeemed this perk ${count}/${maxRedemptions} times.`,
             perk: {
               title: perk.title,
               description: perk.description,
-              value: perk.value
+              value: perk.value,
+              redemption_instructions: perk.redemption_instructions
             },
-            user: userData || { name: 'Unknown', email: '' }
+            user: userData || { name: 'Unknown', email: '' },
+            redemptionCount: count,
+            maxRedemptions
           });
+          setLoading(false);
           return;
         }
 
-        // Valid and ready to redeem
         setResult({
           success: true,
           message: 'Valid Code',
@@ -114,13 +148,13 @@ export default function BusinessValidatePage() {
             title: perk.title,
             description: perk.description,
             value: perk.value,
-            business_name: perk.businesses?.name
+            business_name: perk.businesses?.name,
+            redemption_instructions: perk.redemption_instructions
           },
           user: userData || { name: 'Unknown User', email: '' }
         });
 
       } else {
-        // Handle old format codes if any exist
         throw new Error('Please use the updated app to generate QR codes');
       }
     } catch (err: any) {
@@ -135,32 +169,30 @@ export default function BusinessValidatePage() {
   };
 
   const confirmRedemption = async () => {
+    const code = codeFromUrl || manualCode;
     if (!code || !result?.success || validating) return;
     
     setValidating(true);
     
     try {
-      // Parse the TEMP code again
       const parts = code.split('_');
       const [, userId, perkId] = parts;
 
-      // Create redemption record - using 'code' instead of 'redemption_code'
       const { error: redeemError } = await supabase
         .from('perk_redemptions')
         .insert({
           user_id: userId,
           perk_id: perkId,
           status: 'redeemed',
-          code: code  // Changed from 'redemption_code' to 'code'
+          code: code
         });
 
       if (redeemError) throw redeemError;
 
-      // Update result to show success
       setResult(prev => prev ? {
         ...prev,
-        success: false, // Prevent re-redemption
-        message: '✅ Successfully Redeemed!',
+        success: false,
+        message: '✓ Successfully Redeemed!',
         error: undefined
       } : null);
       
@@ -176,121 +208,166 @@ export default function BusinessValidatePage() {
     }
   };
 
-  if (!code) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center p-4">
-        <div className="bg-gray-800 p-8 rounded-xl shadow-xl text-center max-w-md w-full border border-gray-700">
-          <div className="text-red-400 text-7xl mb-6">❌</div>
-          <h1 className="text-2xl font-bold text-white mb-3">No Code Provided</h1>
-          <p className="text-gray-400">Please scan a valid QR code to validate a redemption.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center p-4">
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg text-center max-w-md w-full border border-gray-700">
-          <div className="mb-6">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto"></div>
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-3">Validating Code</h1>
-          <p className="text-gray-400">Checking redemption...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!result) return null;
-
-  const isSuccess = result.success;
-  const isRedeemed = result.message.includes('Successfully Redeemed');
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim()) {
+      validateCode(manualCode.trim());
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black py-8 px-4">
-      <div className="max-w-md mx-auto bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-700">
-        {/* Header */}
-        <div className={`p-6 text-center ${
-          isRedeemed ? 'bg-gradient-to-r from-green-600 to-green-800' :
-          isSuccess ? 'bg-gradient-to-r from-blue-600 to-green-600' : 
-          'bg-gradient-to-r from-red-600 to-red-800'
-        } text-white`}>
-          <div className={`text-5xl mb-3 ${isRedeemed ? 'animate-bounce' : ''}`}>
-            {isRedeemed ? '🎉' : isSuccess ? '✅' : '❌'}
+    <div className="min-h-screen py-8 px-4" style={{ background: COLORS.bg }}>
+      <div className="max-w-xl mx-auto rounded-2xl overflow-hidden border shadow-lg" style={{ borderColor: COLORS.border, background: COLORS.card }}>
+        
+        {loading && (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 mx-auto mb-4" style={{ borderColor: COLORS.brass }}></div>
+            <h1 className="text-xl font-semibold mb-2" style={{ color: COLORS.text }}>Validating Code</h1>
+            <p className="text-sm" style={{ color: COLORS.textDim }}>Checking redemption...</p>
           </div>
-          <h1 className="text-2xl font-bold">{result.message}</h1>
-        </div>
+        )}
 
-        {/* Content */}
-        <div className="p-6 space-y-5">
-          {result.perk && (
-            <div className="bg-gray-900 p-4 rounded-lg border-l-4 border-blue-500">
-              <h2 className="text-xl font-bold text-white mb-2">
-                {result.perk.title}
-              </h2>
-              <p className="text-gray-300">
-                {result.perk.description}
-              </p>
-              {result.perk.value && (
-                <p className="text-green-400 font-semibold mt-2">
-                  Value: {result.perk.value}
-                </p>
+        {!loading && result && (
+          <>
+            <Banner 
+              state={
+                result.message.includes('Successfully Redeemed') ? 'redeemed' :
+                result.success ? 'valid' :
+                result.message.includes('Limit') ? 'limit' : 'invalid'
+              } 
+              message={result.message} 
+            />
+
+            <div className="p-6 space-y-4">
+              {result.perk && (
+                <div className="rounded-xl border p-4" style={{ borderColor: COLORS.border, background: COLORS.cardElevated }}>
+                  <h2 className="text-lg font-semibold mb-1" style={{ color: COLORS.text }}>
+                    {result.perk.title}
+                  </h2>
+                  {result.perk.description && (
+                    <p className="text-sm mb-2" style={{ color: COLORS.textDim }}>
+                      {result.perk.description}
+                    </p>
+                  )}
+                  {result.perk.value && (
+                    <div className="inline-block px-2 py-1 rounded-lg text-sm font-semibold" style={{ background: `${COLORS.mint}15`, color: COLORS.mint }}>
+                      Value: {result.perk.value}
+                    </div>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {result.user && (
-            <div className="border-t border-gray-700 pt-5 space-y-3">
-              <div className="flex justify-between items-center bg-gray-900 p-3 rounded-lg">
-                <span className="text-gray-400 font-medium">Customer:</span>
-                <span className="font-medium text-white">{result.user.name}</span>
+              {result.user && (
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <span className="text-sm font-medium" style={{ color: COLORS.textDim }}>Customer:</span>
+                  <div className="rounded-lg border px-3 py-2" style={{ borderColor: COLORS.border, background: COLORS.cardElevated, color: COLORS.text }}>
+                    {result.user.name}
+                  </div>
+                </div>
+              )}
+
+              {result.message.includes('Limit') && result.error && (
+                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: '#7F1D1D', background: 'rgba(239,68,68,0.15)', color: '#FCA5A5' }}>
+                  {result.error}
+                </div>
+              )}
+
+              {result.perk?.redemption_instructions && (
+                <div className="rounded-xl border p-4" style={{ borderColor: COLORS.border, background: '#0F141B' }}>
+                  <div className="text-sm font-semibold mb-2" style={{ color: COLORS.text }}>
+                    Redemption instructions
+                  </div>
+                  <p className="text-sm" style={{ color: COLORS.textDim }}>
+                    {result.perk.redemption_instructions}
+                  </p>
+                </div>
+              )}
+
+              {result.error && result.message.includes('Invalid') && (
+                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: COLORS.red, background: `${COLORS.red}15`, color: COLORS.red }}>
+                  {result.error}
+                </div>
+              )}
+
+              {result.success && !result.message.includes('Successfully') && (
+                <button
+                  onClick={confirmRedemption}
+                  disabled={validating}
+                  className="w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{ 
+                    background: COLORS.mint, 
+                    color: COLORS.bg 
+                  }}
+                >
+                  {validating ? 'Confirming...' : 'Confirm redemption'}
+                </button>
+              )}
+
+              {result.message.includes('Successfully Redeemed') && (
+                <button
+                  onClick={() => window.location.href = '/business/validate'}
+                  className="w-full rounded-xl px-4 py-3 font-semibold transition-colors"
+                  style={{ 
+                    background: COLORS.brass, 
+                    color: COLORS.bg 
+                  }}
+                >
+                  Validate Another
+                </button>
+              )}
+
+              <div className="rounded-xl border p-3" style={{ borderColor: COLORS.border, background: '#0F141B' }}>
+                <div className="text-xs font-medium mb-1" style={{ color: COLORS.textDim }}>Code</div>
+                <code className="block break-all font-mono text-[11px] px-2 py-1 rounded" style={{ background: COLORS.bg, color: COLORS.text }}>
+                  {codeFromUrl || manualCode}
+                </code>
               </div>
             </div>
-          )}
+          </>
+        )}
 
-          {result.error && !isRedeemed && (
-            <div className="bg-red-900/30 border border-red-800 text-red-300 p-4 rounded-lg">
-              <p>{result.error}</p>
+        {!loading && !hasValidated && !codeFromUrl && (
+          <>
+            <div className="p-6 text-center" style={{ background: COLORS.cardElevated }}>
+              <h1 className="text-xl font-semibold" style={{ color: COLORS.text }}>Validate Redemption</h1>
+              <p className="mt-1 text-sm" style={{ color: COLORS.textDim }}>Scan QR code or enter code manually</p>
             </div>
-          )}
-
-          {/* Action Button */}
-          {isSuccess && !isRedeemed && (
-            <div className="pt-4">
-              <button
-                onClick={confirmRedemption}
-                disabled={validating}
-                className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white py-3 px-4 rounded-lg font-semibold
-                         hover:from-green-700 hover:to-green-900 shadow-md hover:shadow-lg disabled:opacity-50 
-                         disabled:cursor-not-allowed transition-all duration-300"
-              >
-                {validating ? 'Confirming...' : 'Confirm Redemption'}
-              </button>
+            
+            <div className="p-6">
+              <form onSubmit={handleManualSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: COLORS.text }}>
+                    Enter redemption code
+                  </label>
+                  <input
+                    type="text"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    placeholder="TEMP_..."
+                    className="w-full rounded-xl px-4 py-3 font-mono text-sm focus-visible:outline-none focus-visible:ring-2"
+                    style={{ 
+                      background: COLORS.cardElevated, 
+                      border: `1px solid ${COLORS.border}`,
+                      color: COLORS.text
+                    }}
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={!manualCode.trim()}
+                  className="w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{ 
+                    background: COLORS.brass, 
+                    color: COLORS.bg 
+                  }}
+                >
+                  Validate Code
+                </button>
+              </form>
             </div>
-          )}
-
-          {isRedeemed && (
-            <div className="text-center">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Done
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Code Display */}
-        <div className="bg-gray-900 px-6 py-4 border-t border-gray-700">
-          <div className="text-center">
-            <span className="text-xs text-gray-400 block mb-1">Code</span>
-            <span className="font-mono text-xs bg-gray-800 px-3 py-1 rounded text-blue-400 break-all">
-              {code}
-            </span>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
